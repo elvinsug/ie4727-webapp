@@ -27,12 +27,6 @@ interface Material {
 	value: string;
 }
 
-interface Gender {
-	id: string;
-	name: string;
-	value: string;
-}
-
 const FilterSheet = () => {
 	const router = useRouter();
 	const pathname = usePathname();
@@ -65,16 +59,10 @@ const FilterSheet = () => {
 		{ id: "4", name: "Mesh", value: "mesh" },
 	]);
 
-	const [genders] = useState<Gender[]>([
-		{ id: "1", name: "Men", value: "men" },
-		{ id: "2", name: "Women", value: "women" },
-	]);
-
 	// Selected filters state
 	const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 	const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
 	const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
-	const [selectedGenders, setSelectedGenders] = useState<string[]>([]);
 	const [onSale, setOnSale] = useState(false);
 	const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
 	const [bufferPriceRange, setBufferPriceRange] = useState<[number, number]>([
@@ -89,7 +77,6 @@ const FilterSheet = () => {
 		const typeParam = searchParams.get("type");
 		const sizeParam = searchParams.get("size");
 		const materialParam = searchParams.get("material");
-		const sexParam = searchParams.get("sex");
 		const priceLowParam = searchParams.get("price_low");
 		const priceHighParam = searchParams.get("price_high");
 
@@ -101,9 +88,6 @@ const FilterSheet = () => {
 		}
 		if (materialParam) {
 			setSelectedMaterials(materialParam.split(","));
-		}
-		if (sexParam) {
-			setSelectedGenders(sexParam.split(","));
 		}
 		if (priceLowParam || priceHighParam) {
 			const low = priceLowParam ? parseInt(priceLowParam) : 0;
@@ -148,7 +132,6 @@ const FilterSheet = () => {
 		setSelectedTypes([]);
 		setSelectedSizes([]);
 		setSelectedMaterials([]);
-		setSelectedGenders([]);
 		setOnSale(false);
 		setPriceRange([0, 500]);
 		setBufferPriceRange([0, 500]);
@@ -187,9 +170,6 @@ const FilterSheet = () => {
 		}
 		if (selectedMaterials.length > 0) {
 			params.set("material", selectedMaterials.join(","));
-		}
-		if (selectedGenders.length > 0) {
-			params.set("sex", selectedGenders.join(","));
 		}
 		if (priceRange[0] > 0) {
 			params.set("price_low", priceRange[0].toString());
@@ -502,46 +482,6 @@ const FilterSheet = () => {
 											className="rounded-full font-thin"
 										>
 											{material.name}
-										</Button>
-									))}
-								</div>
-							)}
-						</div>
-
-						{/* Gender Section */}
-						<div className="pb-4">
-							<button
-								onClick={() => toggleSection("gender")}
-								className="flex items-center justify-between w-full text-left"
-							>
-								<h3 className="text-lg font-semibold">Gender</h3>
-								{expandedSections.gender ? (
-									<ChevronUp className="w-5 h-5" />
-								) : (
-									<ChevronDown className="w-5 h-5" />
-								)}
-							</button>
-							{expandedSections.gender && (
-								<div className="mt-4 flex flex-wrap gap-2">
-									{genders.map((gender) => (
-										<Button
-											key={gender.id}
-											variant={
-												selectedGenders.includes(gender.value)
-													? "default"
-													: "secondary"
-											}
-											size="sm"
-											onClick={() =>
-												toggleSelection(
-													gender.value,
-													selectedGenders,
-													setSelectedGenders
-												)
-											}
-											className="rounded-full font-thin"
-										>
-											{gender.name}
 										</Button>
 									))}
 								</div>

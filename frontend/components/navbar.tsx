@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -17,31 +17,22 @@ import { useState, useRef, useEffect } from "react";
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 const menuItems = [
-  //   {
-  //     name: "Home",
-  //     path: "/miona",
-  //   },
-  //   {
-  //     name: "On Sale",
-  //     path: "/products?on_sale=true",
-  //   },
   {
     name: "Men",
-    path: "/products?sex=men",
+    path: "/products/men",
   },
   {
     name: "Women",
-    path: "/products?sex=women",
+    path: "/products/women",
   },
   {
-    name: "Accessories",
-    path: "/products?type=accessories",
+    name: "Unisex",
+    path: "/products/unisex",
   },
 ];
 
 const Navbar = () => {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -78,11 +69,7 @@ const Navbar = () => {
         </div>
         <nav className="hidden md:flex items-center justify-center h-full gap-2">
           {menuItems.map((menu) => {
-            const [path, query] = menu.path.split("?");
-            const currentQuery = searchParams.toString();
-            const isActive =
-              pathname.includes(path.split("/").pop() || "") &&
-              currentQuery === query;
+            const isActive = pathname === menu.path;
             return (
               <Button
                 key={menu.name}
