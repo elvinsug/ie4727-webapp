@@ -1,0 +1,11 @@
+# Allow access to uploaded files
+<FilesMatch "\.(jpg|jpeg|png|gif|webp)$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes
+
+# Enable following symlinks
+Options +FollowSymLinks
