@@ -3,7 +3,6 @@ import { Suspense } from "react";
 import { fontDisplay, fontText } from "@/fonts/font";
 import "./globals.css";
 import Navbar from "@/components/navbar";
-import { Suspense } from "react";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 

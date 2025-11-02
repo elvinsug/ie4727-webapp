@@ -132,7 +132,7 @@ const FilterSheet = () => {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="rounded-full">
+        <Button variant="outline" className="rounded-full h-[42px]">
           Filters
         </Button>
       </SheetTrigger>
