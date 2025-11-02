@@ -26,6 +26,17 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -216,6 +227,7 @@ const AdminProducts = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   // Form state
   const [productName, setProductName] = useState("");
@@ -461,6 +473,13 @@ const AdminProducts = () => {
       });
     }
     handleResetForm();
+  };
+
+  // Handle delete
+  const handleDeleteProduct = (productId: string) => {
+    // TODO: Implement delete product logic
+    console.log("Deleting product:", productId);
+    setDeletingProductId(null);
   };
 
   // Filter products based on search
@@ -805,10 +824,10 @@ const AdminProducts = () => {
       <div className="flex-1 flex flex-col bg-white rounded-md overflow-hidden min-h-0">
         {/* Table Header */}
         <div className="shrink-0 border-b">
-          <Table>
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[320px] h-12">Product</TableHead>
+                <TableHead className="w-[320px] h-12 px-4">Product</TableHead>
                 <TableHead className="w-[140px]">ID</TableHead>
                 <TableHead className="w-[100px]">Total Qty</TableHead>
                 <TableHead className="w-[120px]">Discount</TableHead>
@@ -822,12 +841,12 @@ const AdminProducts = () => {
 
         {/* Scrollable Table Body */}
         <div className="flex-1 overflow-y-auto min-h-0">
-          <Table>
+          <Table className="table-fixed">
             <TableBody>
               {filteredProducts.map((product) => (
                 <TableRow key={product.id}>
-                  <TableCell className="w-[300px] overflow-hidden">
-                    <div className="flex gap-4 items-center py-1 w-[300px]">
+                  <TableCell className="w-[320px] px-4">
+                    <div className="flex gap-4 items-center py-1">
                       <div
                         className={`aspect-square w-16 rounded-sm ${product.image}`}
                       />
@@ -869,9 +888,32 @@ const AdminProducts = () => {
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon-sm">
-                        <Trash className="w-4 h-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon-sm">
+                            <Trash className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete{" "}
+                              <span className="font-semibold">{product.name}</span> and remove
+                              all associated data from our servers.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteProduct(product.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </TableCell>
                 </TableRow>

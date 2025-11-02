@@ -110,9 +110,9 @@ export default function RootLayout({
                   />
                   <MenuList
                     icon={<User className="w-5 h-5" />}
-                    name="Manage Admins"
-                    path="/admin/admins"
-                    isActive={normalizedPath === "/admin/admins"}
+                    name="Customer Lists"
+                    path="/admin/customers"
+                    isActive={normalizedPath === "/admin/customers"}
                   />
                 </div>
 
