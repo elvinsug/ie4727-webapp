@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useState, useEffect, Suspense } from "react";
 import FilterSheet from "@/components/FilterSheet";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -121,8 +121,64 @@ const ProductsPageContent = () => {
 		setError(null);
 
 		try {
+			// Build query parameters from URL search params
+			const params = new URLSearchParams();
+
+			// Add search parameter
+			const search = searchParams.get("search");
+			if (search) {
+				params.set("search", search);
+			}
+
+			// Add sex parameter
+			const sex = searchParams.get("sex");
+			if (sex) {
+				params.set("sex", sex);
+			}
+
+			// Add type parameter (comma-separated if multiple)
+			const type = searchParams.get("type");
+			if (type) {
+				params.set("type", type);
+			}
+
+			// Add material parameter
+			const material = searchParams.get("material");
+			if (material) {
+				params.set("material", material);
+			}
+
+			// Add sizes parameter (rename from 'size' to 'sizes' for API)
+			const size = searchParams.get("size");
+			if (size) {
+				params.set("sizes", size);
+			}
+
+			// Add price range parameters
+			const price_low = searchParams.get("price_low");
+			if (price_low) {
+				params.set("price_low", price_low);
+			}
+
+			const price_high = searchParams.get("price_high");
+			if (price_high) {
+				params.set("price_high", price_high);
+			}
+
+			// Add sort parameter
+			const sort = searchParams.get("sort");
+			if (sort) {
+				params.set("sort", sort);
+			}
+
+			// Add pagination parameters
+			const page = searchParams.get("page") || "1";
+			const limit = searchParams.get("limit") || "12";
+			params.set("page", page);
+			params.set("limit", limit);
+
 			const response = await fetch(
-				`${API_URL}/get_product_options.php`
+				`${API_URL}/products/get_products.php?${params.toString()}`
 			);
 
 			if (!response.ok) {
@@ -133,15 +189,7 @@ const ProductsPageContent = () => {
 
 			if (data.success) {
 				setProducts(data.data || []);
-				// Since get_product_options doesn't have pagination, set defaults
-				setPagination({
-					current_page: 1,
-					per_page: data.data?.length || 0,
-					total: data.data?.length || 0,
-					total_pages: 1,
-					has_next: false,
-					has_prev: false,
-				});
+				setPagination(data.pagination);
 			} else {
 				throw new Error(data.error || "Failed to fetch products");
 			}
@@ -157,29 +205,43 @@ const ProductsPageContent = () => {
 		fetchProducts();
 	}, []);
 
+	// Fetch products when search params change (including pagination)
+	useEffect(() => {
+		fetchProducts();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [searchParams.toString()]);
+
 	// Initialize from URL params
 	useEffect(() => {
 		const typeParam = searchParams.get("type");
 		const sizeParam = searchParams.get("size");
 		const sortParam = searchParams.get("sort");
 
-		if (typeParam) {
-			setSelectedTypes(typeParam.split(","));
-		} else {
-			setSelectedTypes([]);
-		}
+		const newTypes = typeParam ? typeParam.split(",") : [];
+		const newSizes = sizeParam ? sizeParam.split(",") : [];
+		const newSort = sortParam || "";
 
-		if (sizeParam) {
-			setSelectedSizes(sizeParam.split(","));
-		} else {
-			setSelectedSizes([]);
-		}
+		// Only update state if values actually changed (avoid unnecessary re-renders)
+		setSelectedTypes((prev) => {
+			if (prev.length !== newTypes.length || !prev.every((val, idx) => val === newTypes[idx])) {
+				return newTypes;
+			}
+			return prev;
+		});
 
-		if (sortParam) {
-			setSelectedSort(sortParam);
-		} else {
-			setSelectedSort("");
-		}
+		setSelectedSizes((prev) => {
+			if (prev.length !== newSizes.length || !prev.every((val, idx) => val === newSizes[idx])) {
+				return newSizes;
+			}
+			return prev;
+		});
+
+		setSelectedSort((prev) => {
+			if (prev !== newSort) {
+				return newSort;
+			}
+			return prev;
+		});
 	}, [searchParams]);
 
 	// Check if all types are selected
@@ -229,7 +291,7 @@ const ProductsPageContent = () => {
 	};
 
 	useEffect(() => {
-		const params = new URLSearchParams();
+		const params = new URLSearchParams(searchParams.toString());
 
 		// Handle types
 		if (selectedTypes.length > 0) {
@@ -252,6 +314,9 @@ const ProductsPageContent = () => {
 			params.delete("sort");
 		}
 
+		// Reset to page 1 when filters change (but keep other params)
+		params.delete("page");
+
 		const queryString = params.toString();
 
 		if (queryString) {
@@ -259,7 +324,8 @@ const ProductsPageContent = () => {
 		} else {
 			router.replace(`${pathname}`, { scroll: false });
 		}
-	}, [selectedTypes, selectedSizes, pathname, router]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [selectedTypes, selectedSizes, selectedSort]);
 
 	return (
 		<div className="mt-[88px] w-screen p-8 pt-4">
@@ -361,16 +427,44 @@ const ProductsPageContent = () => {
 							<div className="flex gap-2 items-center">
 								<p>Sort Price</p>
 								<div className="flex rounded-full">
-									<Button variant="ghost" size="icon-sm" className="rounded-full"><ArrowUp className="w-3 h-3" /></Button>
-									<Button variant="ghost" size="icon-sm" className="rounded-full"><ArrowDown className="w-3 h-3" /></Button>
+									<Button
+										variant={selectedSort === 'price_asc' ? 'default' : 'ghost'}
+										size="icon-sm"
+										className="rounded-full"
+										onClick={() => setSelectedSort(selectedSort === 'price_asc' ? '' : 'price_asc')}
+									>
+										<ArrowUp className="w-3 h-3" />
+									</Button>
+									<Button
+										variant={selectedSort === 'price_desc' ? 'default' : 'ghost'}
+										size="icon-sm"
+										className="rounded-full"
+										onClick={() => setSelectedSort(selectedSort === 'price_desc' ? '' : 'price_desc')}
+									>
+										<ArrowDown className="w-3 h-3" />
+									</Button>
 								</div>
 							</div>
 							<div className="h-6 w-px bg-black" />
 							<div className="flex gap-2 items-center">
 								<p>Sort Release</p>
 								<div className="flex rounded-full">
-									<Button variant="ghost" size="icon-sm" className="rounded-full"><ArrowUp className="w-3 h-3" /></Button>
-									<Button variant="ghost" size="icon-sm" className="rounded-full"><ArrowDown className="w-3 h-3" /></Button>
+									<Button
+										variant={selectedSort === 'release_asc' ? 'default' : 'ghost'}
+										size="icon-sm"
+										className="rounded-full"
+										onClick={() => setSelectedSort(selectedSort === 'release_asc' ? '' : 'release_asc')}
+									>
+										<ArrowUp className="w-3 h-3" />
+									</Button>
+									<Button
+										variant={selectedSort === 'release_desc' ? 'default' : 'ghost'}
+										size="icon-sm"
+										className="rounded-full"
+										onClick={() => setSelectedSort(selectedSort === 'release_desc' ? '' : 'release_desc')}
+									>
+										<ArrowDown className="w-3 h-3" />
+									</Button>
 								</div>
 							</div>
 							<div className="h-6 w-px bg-black" />
@@ -475,8 +569,8 @@ const ProductsPageContent = () => {
 						{pagination.total_pages > 1 && (
 							<div className="flex items-center justify-center gap-2 mt-8">
 								<Button
-									variant="outline"
-									size="sm"
+									variant="ghost"
+									size="icon"
 									disabled={!pagination.has_prev}
 									onClick={() => {
 										const params = new URLSearchParams(searchParams.toString());
@@ -484,16 +578,16 @@ const ProductsPageContent = () => {
 										router.push(`${pathname}?${params.toString()}`);
 									}}
 								>
-									Previous
+									<ChevronLeft className="w-5 h-5" />
 								</Button>
 
 								<span className="text-sm text-gray-600">
-									Page {pagination.current_page} of {pagination.total_pages}
+									Page {pagination.current_page} / {pagination.total_pages}
 								</span>
 
 								<Button
-									variant="outline"
-									size="sm"
+									variant="ghost"
+									size="icon"
 									disabled={!pagination.has_next}
 									onClick={() => {
 										const params = new URLSearchParams(searchParams.toString());
@@ -501,7 +595,7 @@ const ProductsPageContent = () => {
 										router.push(`${pathname}?${params.toString()}`);
 									}}
 								>
-									Next
+									<ChevronRight className="w-5 h-5" />
 								</Button>
 							</div>
 						)}
