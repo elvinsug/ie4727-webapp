@@ -1,5 +1,6 @@
 "use client";
 
+import { ReactNode, useCallback, useEffect, useState } from "react";
 import { fontDisplay, fontText } from "@/fonts/font";
 import "../globals.css";
 import Image from "next/image";
@@ -16,15 +17,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-
-const admin = {
-  name: "John Doe",
-  email: "john.doe@example.com",
-  role: "Admin",
-};
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
 const MenuList = ({
   icon,
@@ -32,7 +29,7 @@ const MenuList = ({
   path,
   isActive,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   name: string;
   path: string;
   isActive: boolean;
@@ -54,10 +51,100 @@ const MenuList = ({
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   const pathname = usePathname();
-  
+  const router = useRouter();
+  const [user, setUser] = useState<{ name: string; email: string } | null>(
+    null
+  );
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const loadUserFromStorage = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem("user");
+
+      if (!raw) {
+        setUser(null);
+        return;
+      }
+
+      const stored = JSON.parse(raw) as {
+        email?: string;
+        name?: string;
+        first_name?: string;
+        last_name?: string;
+      };
+
+      if (!stored?.email) {
+        setUser(null);
+        return;
+      }
+
+      const derivedName =
+        stored.name ||
+        [stored.first_name, stored.last_name]
+          .filter(Boolean)
+          .join(" ")
+          .trim() ||
+        stored.email.split("@")[0];
+
+      setUser({
+        name: derivedName,
+        email: stored.email,
+      });
+    } catch (error) {
+      console.error("Failed to parse stored user", error);
+      setUser(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUserFromStorage();
+
+    const handleAuthChange = () => loadUserFromStorage();
+
+    window.addEventListener("authChange", handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("authChange", handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
+    };
+  }, [loadUserFromStorage]);
+
+  const handleLogout = useCallback(async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+
+    try {
+      const response = await fetch(`${API_URL}/logout.php`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to log out");
+      }
+
+      window.localStorage.removeItem("user");
+      window.dispatchEvent(new Event("authChange"));
+      setUser(null);
+      router.push("/");
+    } catch (error) {
+      console.error("Logout failed", error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }, [isLoggingOut, router]);
+
   // Normalize pathname by removing trailing slash
   const normalizedPath = pathname.endsWith('/') && pathname !== '/' 
     ? pathname.slice(0, -1) 
@@ -66,9 +153,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${fontDisplay.variable} ${fontText.variable} antialiased bg-neutral-100`}
+        className={`${fontDisplay.variable} ${fontText.variable} antialiased`}
       >
-        <div className="grid grid-cols-[320px_1fr]">
+        <div className="grid grid-cols-[320px_1fr] bg-neutral-100 min-h-screen">
           {/* Sidebar */}
           <div className="h-screen w-full flex py-3 pl-3">
             <div className="flex-1 bg-white border border-black/10 shadow-md rounded-xl flex flex-col">
@@ -132,13 +219,21 @@ export default function RootLayout({
                 <div className="flex items-center gap-3">
                   <UserCircle className="w-9 h-9" />
                   <div className="flex flex-col">
-                    <p className="text-base font-medium">{admin.name}</p>
+                    <p className="text-base font-medium">
+                      {user?.name || "Guest"}
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      {admin.email}
+                      {user?.email || "Not signed in"}
                     </p>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon-lg">
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  aria-label="Log out"
+                >
                   <LogOut />
                 </Button>
               </div>

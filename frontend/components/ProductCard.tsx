@@ -7,7 +7,8 @@ import { ShoppingBag } from "lucide-react";
 
 interface ProductCardProps {
   id: number;
-  image: string[];
+  image: string;
+  image2: string;
   name: string;
   price: number;
   discount: number;
@@ -23,6 +24,7 @@ interface ProductCardProps {
 const ProductCard = ({
   id,
   image,
+  image2,
   name,
   price,
   discount,
@@ -63,7 +65,7 @@ ProductCardProps) => {
       <div className="relative w-full aspect-10/12">
         <Link className="w-full h-auto" href={`/products/${id}`}>
           <img
-            src={image[0]}
+            src={image}
             alt={name}
             className={`w-full h-auto object-cover ${
               isHovered ? "opacity-0" : "opacity-100"
@@ -72,7 +74,7 @@ ProductCardProps) => {
         </Link>
         <Link className="w-full h-auto" href={`/products/${id}`}>
           <img
-            src={image[1]}
+            src={image2}
             alt={name}
             className="w-full h-auto object-cover"
           />

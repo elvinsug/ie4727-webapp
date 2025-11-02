@@ -23,7 +23,7 @@ export default function Home() {
             <Button
               variant={"outline"}
               size={"lg"}
-              className="w-fit border-white text-white"
+              className="w-fit border-white"
             >
               SEE COLLECTION
             </Button>

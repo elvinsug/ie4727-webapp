@@ -553,7 +553,8 @@ const ProductsPageContent = () => {
 										sizes={product.options ? product.options.map((opt: any) => opt.size) : []}
 										price={product.price}
 										discount={product.discount_percentage}
-										image={product.image_url ? [product.image_url] : []}
+										image={product.image_url}
+										image2={product.image_url_2}
 									/>
 								))}
 							</div>

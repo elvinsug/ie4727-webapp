@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Edit,
   Trash,
@@ -46,165 +46,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Mock product data
-const mockProducts = [
-  {
-    id: "1234567890",
-    name: "Nike Air Max 270",
-    image: "bg-neutral-500",
-    sizes: [
-      { size: "US 8", qty: 15 },
-      { size: "US 9", qty: 12 },
-      { size: "US 10", qty: 15 },
-    ],
-    discount: 10,
-    sales: 12450.0,
-    price: 180.0,
-  },
-  {
-    id: "0987654321",
-    name: "Adidas Ultraboost 22",
-    image: "bg-neutral-400",
-    sizes: [
-      { size: "US 7", qty: 8 },
-      { size: "US 8", qty: 10 },
-      { size: "US 9", qty: 10 },
-    ],
-    discount: 15,
-    sales: 8920.0,
-    price: 190.0,
-  },
-  {
-    id: "5647382910",
-    name: "New Balance 990v6",
-    image: "bg-neutral-600",
-    sizes: [
-      { size: "US 8", qty: 5 },
-      { size: "US 9", qty: 5 },
-      { size: "US 10", qty: 5 },
-    ],
-    discount: 0,
-    sales: 7350.0,
-    price: 175.0,
-  },
-  {
-    id: "1928374650",
-    name: "Asics Gel-Kayano 29",
-    image: "bg-neutral-700",
-    sizes: [
-      { size: "US 7", qty: 20 },
-      { size: "US 8", qty: 18 },
-      { size: "US 9", qty: 12 },
-    ],
-    discount: 20,
-    sales: 6800.0,
-    price: 160.0,
-  },
-  {
-    id: "5738291046",
-    name: "Puma RS-X3",
-    image: "bg-neutral-300",
-    sizes: [
-      { size: "US 8", qty: 25 },
-      { size: "US 9", qty: 20 },
-      { size: "US 10", qty: 15 },
-    ],
-    discount: 5,
-    sales: 5200.0,
-    price: 130.0,
-  },
-  {
-    id: "8374629105",
-    name: "Reebok Nano X2",
-    image: "bg-neutral-800",
-    sizes: [
-      { size: "US 7", qty: 10 },
-      { size: "US 8", qty: 8 },
-      { size: "US 9", qty: 7 },
-    ],
-    discount: 10,
-    sales: 4900.0,
-    price: 140.0,
-  },
-  {
-    id: "2938475610",
-    name: "Hoka One One Clifton 8",
-    image: "bg-neutral-400",
-    sizes: [
-      { size: "US 8", qty: 14 },
-      { size: "US 9", qty: 12 },
-      { size: "US 10", qty: 10 },
-    ],
-    discount: 0,
-    sales: 4500.0,
-    price: 150.0,
-  },
-  {
-    id: "4857392016",
-    name: "Saucony Endorphin Speed 2",
-    image: "bg-neutral-500",
-    sizes: [
-      { size: "US 7", qty: 6 },
-      { size: "US 8", qty: 8 },
-      { size: "US 9", qty: 10 },
-    ],
-    discount: 25,
-    sales: 4200.0,
-    price: 170.0,
-  },
-  {
-    id: "9182736450",
-    name: "Brooks Ghost 14",
-    image: "bg-neutral-600",
-    sizes: [
-      { size: "US 8", qty: 18 },
-      { size: "US 9", qty: 15 },
-      { size: "US 10", qty: 12 },
-    ],
-    discount: 10,
-    sales: 3800.0,
-    price: 140.0,
-  },
-  {
-    id: "3847562910",
-    name: "Mizuno Wave Rider 25",
-    image: "bg-neutral-700",
-    sizes: [
-      { size: "US 7", qty: 9 },
-      { size: "US 8", qty: 11 },
-      { size: "US 9", qty: 10 },
-    ],
-    discount: 15,
-    sales: 3500.0,
-    price: 135.0,
-  },
-  {
-    id: "5629384710",
-    name: "Under Armour HOVR Phantom 2",
-    image: "bg-neutral-300",
-    sizes: [
-      { size: "US 8", qty: 22 },
-      { size: "US 9", qty: 18 },
-      { size: "US 10", qty: 14 },
-    ],
-    discount: 20,
-    sales: 3200.0,
-    price: 150.0,
-  },
-  {
-    id: "7485920163",
-    name: "On Cloudflow",
-    image: "bg-neutral-800",
-    sizes: [
-      { size: "US 7", qty: 7 },
-      { size: "US 8", qty: 9 },
-      { size: "US 9", qty: 11 },
-    ],
-    discount: 0,
-    sales: 2900.0,
-    price: 145.0,
-  },
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
 // Predefined colors
 const AVAILABLE_COLORS = [
@@ -224,6 +66,8 @@ const AVAILABLE_COLORS = [
 ];
 
 const AdminProducts = () => {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -260,6 +104,36 @@ const AdminProducts = () => {
     "45",
     "46",
   ];
+
+  // Fetch products from API
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_URL}/products/get_products.php`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch products");
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setProducts(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      alert("Failed to load products");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load products on mount
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   // Toggle color selection
   const handleToggleColor = (colorName: string, colorHex: string) => {
@@ -404,32 +278,38 @@ const AdminProducts = () => {
 
   // Open dialog for editing product
   const handleOpenEditDialog = (productId: string) => {
-    const product = mockProducts.find((p) => p.id === productId);
+    const product = products.find((p) => p.id.toString() === productId);
     if (!product) return;
 
     setEditingProductId(productId);
     setProductName(product.name);
-    setMaterial("Synthetic Mesh"); // Mock material since it's not in mockProducts
-    setSex("unisex"); // Mock sex since it's not in mockProducts
-    setDescription("High-performance athletic footwear designed for comfort and style."); // Mock description
-    
-    // Convert mock product data to color format
-    // For demo purposes, we'll create a single "Black" color with the product's data
-    setColors([
-      {
-        id: Date.now().toString(),
-        name: "Black",
-        hex: "#000000",
-        images: [],
-        sizes: product.sizes.map((s) => ({
-          size: s.size.replace("US ", ""), // Convert "US 8" to "8"
-          qty: s.qty,
-        })),
-        price: product.price.toString(),
-        discount: product.discount.toString(),
-      },
-    ]);
-    
+    setMaterial(product.materials || "");
+    setSex(product.sex || "unisex");
+    setDescription(product.description || "");
+
+    // Convert API product data to color format
+    const formattedColors = (product.colors || []).map((colorData: any) => {
+      // Get first option for price/discount (assuming all sizes have same price/discount)
+      const firstOption = (colorData.options || [])[0] || { price: 0, discount_percentage: 0 };
+
+      return {
+        id: colorData.id.toString(),
+        name: colorData.color,
+        hex: AVAILABLE_COLORS.find(c => c.name === colorData.color)?.hex || "#000000",
+        images: [], // Images are already uploaded, we'll handle them separately if needed
+        sizes: availableSizes.map((size) => {
+          const matchingOption = (colorData.options || []).find((opt: any) => opt.size === size);
+          return {
+            size,
+            qty: matchingOption ? matchingOption.stock : 0,
+          };
+        }),
+        price: firstOption.price.toString(),
+        discount: firstOption.discount_percentage.toString(),
+      };
+    });
+
+    setColors(formattedColors);
     setIsDialogOpen(true);
   };
 
@@ -452,40 +332,133 @@ const AdminProducts = () => {
   };
 
   // Handle submit (add or update)
-  const handleSubmit = () => {
-    if (editingProductId) {
-      // TODO: Implement update product logic
-      console.log("Updating product:", editingProductId, {
-        productName,
-        material,
-        sex,
-        description,
-        colors,
+  const handleSubmit = async () => {
+    try {
+      // Validate required fields
+      if (!productName.trim()) {
+        alert("Product name is required");
+        return;
+      }
+      if (!description.trim()) {
+        alert("Product description is required");
+        return;
+      }
+      if (!sex) {
+        alert("Please select a sex category");
+        return;
+      }
+      if (colors.length === 0) {
+        alert("Please add at least one color variant");
+        return;
+      }
+
+      // Prepare FormData
+      const formData = new FormData();
+      formData.append("name", productName);
+      formData.append("description", description);
+      formData.append("materials", material);
+      formData.append("sex", sex);
+      formData.append("type", "casual"); // Default type
+
+      // Prepare colors data
+      const colorsData = colors.map((color, index) => {
+        // Add images to FormData
+        color.images.forEach((image, imgIndex) => {
+          formData.append(`color_${index}_image_${imgIndex + 1}`, image.file);
+        });
+
+        // Prepare options array for this color
+        const options = color.sizes
+          .filter((s) => s.qty > 0) // Only include sizes with stock
+          .map((s) => ({
+            size: s.size,
+            price: parseFloat(color.price) || 0,
+            discount_percentage: parseInt(color.discount) || 0,
+            stock: s.qty,
+          }));
+
+        const colorData: any = {
+          color: color.name,
+          options,
+        };
+
+        // Include color ID for updates (if it's a number, it's from the API)
+        if (editingProductId && !isNaN(parseInt(color.id))) {
+          colorData.id = parseInt(color.id);
+        }
+
+        return colorData;
       });
-    } else {
-      // TODO: Implement add product logic
-      console.log("Adding new product:", {
-        productName,
-        material,
-        sex,
-        description,
-        colors,
+
+      formData.append("colors_data", JSON.stringify(colorsData));
+
+      // Determine endpoint
+      let url = `${API_URL}/products/create_product.php`;
+      if (editingProductId) {
+        url = `${API_URL}/products/update_product.php`;
+        formData.append("id", editingProductId);
+      }
+
+      // Submit request
+      const response = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
       });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to save product");
+      }
+
+      alert(editingProductId ? "Product updated successfully!" : "Product created successfully!");
+      handleResetForm();
+      fetchProducts(); // Refresh products list
+    } catch (error: any) {
+      console.error("Error saving product:", error);
+      alert(error.message || "Failed to save product");
     }
-    handleResetForm();
   };
 
   // Handle delete
-  const handleDeleteProduct = (productId: string) => {
-    // TODO: Implement delete product logic
-    console.log("Deleting product:", productId);
-    setDeletingProductId(null);
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      const response = await fetch(
+        `${API_URL}/products/delete_product.php?id=${productId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete product");
+      }
+
+      alert("Product deleted successfully!");
+      setDeletingProductId(null);
+      fetchProducts(); // Refresh products list
+    } catch (error: any) {
+      console.error("Error deleting product:", error);
+      alert(error.message || "Failed to delete product");
+    }
   };
 
   // Filter products based on search
-  const filteredProducts = mockProducts.filter((product) =>
+  const filteredProducts = products.filter((product) =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <p className="text-lg text-muted-foreground">Loading products...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-screen flex flex-col gap-4 p-4">
@@ -648,7 +621,7 @@ const AdminProducts = () => {
                                       : undefined,
                                 }}
                               />
-                              <h4 className="font-semibold text-base">
+                              <h4 className="text-base">
                                 {color.name}
                               </h4>
                             </div>
@@ -843,81 +816,132 @@ const AdminProducts = () => {
         <div className="flex-1 overflow-y-auto min-h-0">
           <Table className="table-fixed">
             <TableBody>
-              {filteredProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="w-[320px] px-4">
-                    <div className="flex gap-4 items-center py-1">
-                      <div
-                        className={`aspect-square w-16 rounded-sm ${product.image}`}
-                      />
-                      <h1 className="text-base font-medium truncate">{product.name}</h1>
-                    </div>
-                  </TableCell>
-                  <TableCell className="w-[140px] font-mono text-sm">
-                    {product.id}
-                  </TableCell>
-                  <TableCell className="w-[100px] font-medium">
-                    {product.sizes.reduce((total, size) => total + size.qty, 0)}{" "}
-                    pcs
-                  </TableCell>
-                  <TableCell className="w-[120px]">
-                    {product.discount > 0 ? (
-                      <span className="font-medium text-green-600">
-                        {product.discount}% off
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">No discount</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="w-[140px] font-display font-bold">
-                    $
-                    {product.sales.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </TableCell>
-                  <TableCell className="w-[100px] font-display font-semibold">
-                    ${product.price.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="w-[100px]">
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleOpenEditDialog(product.id)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon-sm">
-                            <Trash className="w-4 h-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will permanently delete{" "}
-                              <span className="font-semibold">{product.name}</span> and remove
-                              all associated data from our servers.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteProduct(product.id)}
-                              className="bg-red-600 hover:bg-red-700"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredProducts.flatMap((product) => {
+                // If product has no colors, show a single row
+                if (!product.colors || product.colors.length === 0) {
+                  return [{
+                    product,
+                    color: null,
+                    key: `${product.id}`
+                  }];
+                }
+
+                // Otherwise, create a row for each color
+                return product.colors.map((color: any) => ({
+                  product,
+                  color,
+                  key: `${product.id}-${color.id}`
+                }));
+              }).map(({ product, color, key }) => {
+                // Calculate quantities for this specific color
+                const colorQty = color
+                  ? (color.options || []).reduce(
+                      (total: number, opt: any) => total + (opt.stock || 0),
+                      0
+                    )
+                  : 0;
+
+                // Get price and discount from first option of this color
+                const firstOption = color?.options?.[0];
+                const price = firstOption?.price || 0;
+                const discount = firstOption?.discount_percentage || 0;
+
+                // Get image for this color
+                const imageUrl = color?.image_url;
+
+                return (
+                  <TableRow key={key}>
+                    <TableCell className="w-[320px] px-4">
+                      <div className="flex gap-4 items-center py-1">
+                        {imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={`${product.name} - ${color?.color}`}
+                            className="aspect-square w-16 rounded-sm object-cover bg-neutral-200"
+                          />
+                        ) : (
+                          <div className="aspect-square w-16 rounded-sm bg-neutral-300" />
+                        )}
+                        <div className="flex flex-col">
+                          <h1 className="text-base font-medium truncate">
+                            {product.name}
+                          </h1>
+                          {color && (
+                            <span className="text-sm text-muted-foreground">
+                              {color.color}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="w-[140px] font-mono text-sm">
+                      {product.id}
+                    </TableCell>
+                    <TableCell className="w-[100px]">
+                      {colorQty} pcs
+                    </TableCell>
+                    <TableCell className="w-[120px]">
+                      {discount > 0 ? (
+                        <span className="font-medium text-green-600">
+                          {discount}% off
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">No discount</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="w-[140px] font-display">
+                      $0.00
+                    </TableCell>
+                    <TableCell className="w-[100px] font-display">
+                      ${price.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="w-[100px]">
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleOpenEditDialog(product.id.toString())}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon-sm">
+                              <Trash className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Are you absolutely sure?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will permanently
+                                delete{" "}
+                                <span>
+                                  {product.name}
+                                </span>{" "}
+                                and remove all associated data from our servers.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() =>
+                                  handleDeleteProduct(product.id.toString())
+                                }
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

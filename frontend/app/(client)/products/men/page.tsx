@@ -175,7 +175,7 @@ const MenProductsPageContent = () => {
 			params.set("limit", limit);
 
 			const response = await fetch(
-				`${API_URL}/products/get_products.php?${params.toString()}`
+				`${API_URL}/products/get_product_colors.php?${params.toString()}`
 			);
 
 			if (!response.ok) {
@@ -183,6 +183,7 @@ const MenProductsPageContent = () => {
 			}
 
 			const data = await response.json();
+			console.log(data.data);
 
 			if (data.success) {
 				setProducts(data.data || []);
@@ -505,7 +506,8 @@ const MenProductsPageContent = () => {
 										sizes={product.options ? product.options.map((opt: any) => opt.size) : []}
 										price={product.price}
 										discount={product.discount_percentage}
-										image={product.image_url ? [product.image_url] : []}
+										image={product.image_url}
+										image2={product.image_url_2}
 									/>
 								))}
 							</div>

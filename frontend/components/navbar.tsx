@@ -1,20 +1,15 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import {
-  LogIn,
-  Menu,
-  SearchIcon,
-  ShoppingBag,
-  User,
-  XCircle,
-} from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { LogIn, LogOut, Menu, SearchIcon, ShoppingBag, User, XCircle } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
 const menuItems = [
   {
@@ -33,18 +28,94 @@ const menuItems = [
 
 const Navbar = () => {
   const pathname = usePathname();
+  const router = useRouter();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [user, setUser] = useState<{ email: string; role?: string } | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const syncUserFromStorage = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem("user");
+
+      if (!raw) {
+        setUser(null);
+        return;
+      }
+
+      const stored = JSON.parse(raw) as { email?: string; role?: string };
+
+      if (!stored?.email) {
+        setUser(null);
+        return;
+      }
+
+      setUser({
+        email: stored.email,
+        role: stored.role,
+      });
+    } catch (error) {
+      console.error("Failed to parse stored user", error);
+      setUser(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncUserFromStorage();
+
+    const handleAuthChange = () => syncUserFromStorage();
+
+    window.addEventListener("authChange", handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("authChange", handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
+    };
+  }, [syncUserFromStorage]);
+
+  const isLoggedIn = Boolean(user);
 
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current) {
       searchInputRef.current.focus();
     }
   }, [isSearchOpen]);
+
+  const handleLogout = useCallback(async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+
+    try {
+      const response = await fetch(`${API_URL}/logout.php`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to log out");
+      }
+
+      window.localStorage.removeItem("user");
+      window.dispatchEvent(new Event("authChange"));
+      setUser(null);
+      router.push("/");
+    } catch (error) {
+      console.error("Logout failed", error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }, [isLoggingOut, router]);
 
   return (
     <div className="fixed top-3 inset-x-3 z-50">
@@ -133,6 +204,15 @@ const Navbar = () => {
               </Button>
               <Button variant="ghost" size="icon-lg">
                 <ShoppingBag />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-lg"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                aria-label="Log out"
+              >
+                <LogOut />
               </Button>
             </>
           ) : (
