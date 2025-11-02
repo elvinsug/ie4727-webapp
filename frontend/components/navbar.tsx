@@ -9,7 +9,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import CartSheet from "./CartSheet";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 const CART_STORAGE_KEY = "cartItems";
 const CHECKOUT_SNAPSHOT_KEY = "cartCheckoutSnapshot";
 
@@ -207,12 +208,6 @@ const Navbar = () => {
 
           {isLoggedIn ? (
             <>
-              <Link href="/user">
-                <Button variant="ghost" size="icon-lg">
-                  <User />
-                </Button>
-              </Link>
-              <CartSheet />
               <Button variant="ghost" size="icon-lg">
                 <User />
               </Button>
