@@ -178,7 +178,7 @@ const ProductsPageContent = () => {
 			params.set("limit", limit);
 
 			const response = await fetch(
-				`${API_URL}/products/get_products.php?${params.toString()}`
+				`${API_URL}/products/get_product_colors.php?${params.toString()}`
 			);
 
 			if (!response.ok) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Calendar as CalendarIcon, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,129 +23,21 @@ import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 
-// Mock transaction data
-const mockTransactions = [
-  {
-    id: "TXN001",
-    itemName: "Nike Air Max 270",
-    color: "Black",
-    size: "US 9",
-    quantity: 1,
-    purchasedBy: "John Doe",
-    date: new Date(2025, 10, 1),
-    amount: 162.0, // After 10% discount
-  },
-  {
-    id: "TXN002",
-    itemName: "Adidas Ultraboost 22",
-    color: "White",
-    size: "US 8",
-    quantity: 2,
-    purchasedBy: "Jane Smith",
-    date: new Date(2025, 10, 2),
-    amount: 323.0, // After 15% discount
-  },
-  {
-    id: "TXN003",
-    itemName: "New Balance 990v6",
-    color: "Gray",
-    size: "US 10",
-    quantity: 1,
-    purchasedBy: "Mike Johnson",
-    date: new Date(2025, 10, 2),
-    amount: 175.0,
-  },
-  {
-    id: "TXN004",
-    itemName: "Asics Gel-Kayano 29",
-    color: "Blue",
-    size: "US 7",
-    quantity: 1,
-    purchasedBy: "Sarah Williams",
-    date: new Date(2025, 10, 3),
-    amount: 128.0, // After 20% discount
-  },
-  {
-    id: "TXN005",
-    itemName: "Puma RS-X3",
-    color: "Red",
-    size: "US 9",
-    quantity: 3,
-    purchasedBy: "David Brown",
-    date: new Date(2025, 10, 3),
-    amount: 370.5, // After 5% discount
-  },
-  {
-    id: "TXN006",
-    itemName: "Reebok Nano X2",
-    color: "Black",
-    size: "US 8",
-    quantity: 1,
-    purchasedBy: "Emily Davis",
-    date: new Date(2025, 10, 4),
-    amount: 126.0, // After 10% discount
-  },
-  {
-    id: "TXN007",
-    itemName: "Hoka One One Clifton 8",
-    color: "Orange",
-    size: "US 10",
-    quantity: 1,
-    purchasedBy: "Chris Wilson",
-    date: new Date(2025, 10, 5),
-    amount: 150.0,
-  },
-  {
-    id: "TXN008",
-    itemName: "Saucony Endorphin Speed 2",
-    color: "Green",
-    size: "US 9",
-    quantity: 2,
-    purchasedBy: "Amanda Martinez",
-    date: new Date(2025, 10, 5),
-    amount: 255.0, // After 25% discount
-  },
-  {
-    id: "TXN009",
-    itemName: "Brooks Ghost 14",
-    color: "Purple",
-    size: "US 8",
-    quantity: 1,
-    purchasedBy: "Robert Taylor",
-    date: new Date(2025, 10, 6),
-    amount: 126.0, // After 10% discount
-  },
-  {
-    id: "TXN010",
-    itemName: "Mizuno Wave Rider 25",
-    color: "Blue",
-    size: "US 7",
-    quantity: 1,
-    purchasedBy: "Lisa Anderson",
-    date: new Date(2025, 10, 7),
-    amount: 114.75, // After 15% discount
-  },
-  {
-    id: "TXN011",
-    itemName: "Under Armour HOVR Phantom 2",
-    color: "Black",
-    size: "US 9",
-    quantity: 2,
-    purchasedBy: "Kevin Thomas",
-    date: new Date(2025, 10, 8),
-    amount: 240.0, // After 20% discount
-  },
-  {
-    id: "TXN012",
-    itemName: "On Cloudflow",
-    color: "White",
-    size: "US 10",
-    quantity: 1,
-    purchasedBy: "Michelle Jackson",
-    date: new Date(2025, 10, 9),
-    amount: 145.0,
-  },
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
+
+type TransactionRecord = {
+  id: number;
+  code: string;
+  itemName: string;
+  color: string;
+  size: string;
+  quantity: number;
+  purchasedBy: string;
+  date: Date | null;
+  amount: number;
+  status: string;
+  paymentMethod: string | null;
+};
 
 type SortField = "date" | "amount" | null;
 type SortDirection = "asc" | "desc";
@@ -156,260 +48,313 @@ const AdminTransactions = () => {
   const [isDateDialogOpen, setIsDateDialogOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Handle sort
+  const fetchTransactions = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch(`${API_URL}/transactions/get_transactions.php`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to fetch transactions");
+      }
+
+      const mapped: TransactionRecord[] = (data.transactions || []).map((transaction: any) => {
+        const dateValue = transaction.transaction_date ? new Date(transaction.transaction_date) : null;
+
+        return {
+          id: transaction.id,
+          code:
+            transaction.transaction_code ??
+            `TXN${String(transaction.id ?? "").padStart(6, "0")}`,
+          itemName: transaction.product?.name ?? "Unknown product",
+          color: transaction.product?.color ?? "N/A",
+          size: transaction.product?.size ?? "N/A",
+          quantity: Number(transaction.quantity ?? 0),
+          purchasedBy: transaction.user?.email ?? "Unknown customer",
+          date: dateValue && !isNaN(dateValue.getTime()) ? dateValue : null,
+          amount: Number(transaction.total_amount ?? 0),
+          status: transaction.status ?? "completed",
+          paymentMethod: transaction.payment_method ?? null,
+        };
+      });
+
+      setTransactions(mapped);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch transactions");
+      setTransactions([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      // Toggle direction if same field
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
-      // Set new field with default desc direction
       setSortField(field);
       setSortDirection("desc");
     }
   };
 
-  // Filter transactions based on search and date range
-  const filteredTransactions = mockTransactions.filter((transaction) => {
-    const matchesSearch =
-      transaction.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.purchasedBy.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.color.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredTransactions = useMemo(() => {
+    const loweredQuery = searchQuery.toLowerCase().trim();
 
-    const matchesDateRange =
-      !dateRange ||
-      !dateRange.from ||
-      (transaction.date >= dateRange.from &&
-        (!dateRange.to || transaction.date <= dateRange.to));
+    return transactions.filter((transaction) => {
+      const matchesSearch =
+        !loweredQuery ||
+        transaction.itemName.toLowerCase().includes(loweredQuery) ||
+        transaction.purchasedBy.toLowerCase().includes(loweredQuery) ||
+        transaction.color.toLowerCase().includes(loweredQuery) ||
+        transaction.code.toLowerCase().includes(loweredQuery);
 
-    return matchesSearch && matchesDateRange;
-  });
+      const transactionDate = transaction.date;
+      const matchesDateRange =
+        !dateRange ||
+        !dateRange.from ||
+        (transactionDate &&
+          transactionDate >= dateRange.from &&
+          (!dateRange.to || transactionDate <= dateRange.to));
 
-  // Sort transactions
-  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
-    if (!sortField) return 0;
+      return matchesSearch && matchesDateRange;
+    });
+  }, [transactions, searchQuery, dateRange]);
 
-    let comparison = 0;
-
-    if (sortField === "date") {
-      comparison = a.date.getTime() - b.date.getTime();
-    } else if (sortField === "amount") {
-      comparison = a.amount - b.amount;
+  const sortedTransactions = useMemo(() => {
+    if (!sortField) {
+      return filteredTransactions;
     }
 
-    return sortDirection === "asc" ? comparison : -comparison;
-  });
+    const list = [...filteredTransactions];
 
-  // Clear date range
-  const handleClearDateRange = () => {
+    return list.sort((a, b) => {
+      let comparison = 0;
+
+      if (sortField === "date") {
+        const dateA = a.date ? a.date.getTime() : 0;
+        const dateB = b.date ? b.date.getTime() : 0;
+        comparison = dateA - dateB;
+      } else if (sortField === "amount") {
+        comparison = a.amount - b.amount;
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [filteredTransactions, sortField, sortDirection]);
+
+  const resetFilters = () => {
+    setSearchQuery("");
     setDateRange(undefined);
-  };
-
-  // Format date range for display
-  const getDateRangeText = () => {
-    if (!dateRange || !dateRange.from) return "Select Date Range";
-    if (!dateRange.to) return format(dateRange.from, "MMM dd, yyyy");
-    return `${format(dateRange.from, "MMM dd, yyyy")} - ${format(
-      dateRange.to,
-      "MMM dd, yyyy"
-    )}`;
+    setSortField(null);
+    setSortDirection("desc");
   };
 
   return (
-    <div className="w-full h-screen flex flex-col gap-4 p-4">
-      {/* Search and Filter */}
-      <div className="shrink-0 flex items-center gap-2">
-        <Input
-          type="text"
-          placeholder="Search transactions..."
-          className="h-12 bg-white"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        <Button
-          variant={dateRange?.from ? "default" : "outline"}
-          className="h-12 min-w-[240px]"
-          onClick={() => setIsDateDialogOpen(true)}
-        >
-          <CalendarIcon className="w-4 h-4" />
-          <p className="pr-2">{getDateRangeText()}</p>
-          {dateRange?.from && (
-            <X
-              className="w-4 h-4 ml-auto"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleClearDateRange();
-              }}
+    <div className="min-h-screen bg-neutral-100 p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold">Transactions</h1>
+            <p className="text-sm text-gray-500">View and manage recent transactions from the store</p>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search by product, buyer, or color"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="w-full md:w-72"
             />
-          )}
-        </Button>
-        <Dialog open={isDateDialogOpen} onOpenChange={setIsDateDialogOpen}>
-          <DialogContent
-            showCloseButton={false}
-            className="max-w-[400px] p-0 flex flex-col"
-          >
-            {/* Header */}
-            <DialogHeader className="p-4 border-b flex items-center justify-between">
-              <DialogTitle className="text-xl font-display font-bold">
-                Select Date Range
-              </DialogTitle>
-              <DialogClose asChild>
-                <Button
-                  variant="outline"
-                  size="icon-lg"
-                  className="rounded-full"
-                >
-                  <X />
-                </Button>
-              </DialogClose>
-            </DialogHeader>
-
-            {/* Calendar */}
-            <div className="p-4 flex items-center justify-center">
-              <Calendar
-                mode="range"
-                selected={dateRange}
-                onSelect={setDateRange}
-                numberOfMonths={2}
-                className="rounded-md"
-              />
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t bg-neutral-50 rounded-b-md flex gap-2 justify-end">
+            <Dialog open={isDateDialogOpen} onOpenChange={setIsDateDialogOpen}>
               <Button
                 variant="outline"
-                size="lg"
-                onClick={handleClearDateRange}
+                onClick={() => setIsDateDialogOpen(true)}
+                className="flex items-center gap-2"
               >
-                Clear
+                <CalendarIcon className="h-4 w-4" />
+                {dateRange?.from
+                  ? `${format(dateRange.from, "MMM d, yyyy")} ${
+                      dateRange?.to ? `- ${format(dateRange.to, "MMM d, yyyy")}` : ""
+                    }`
+                  : "Select dates"}
               </Button>
-              <Button
-                size="lg"
-                onClick={() => setIsDateDialogOpen(false)}
-              >
-                Apply
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Transactions Table */}
-      <div className="flex-1 flex flex-col bg-white rounded-md overflow-hidden min-h-0">
-        {/* Table Header */}
-        <div className="shrink-0 border-b">
-          <Table className="table-fixed">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[240px] h-12 px-4">Item Name</TableHead>
-                <TableHead className="w-[100px]">Color</TableHead>
-                <TableHead className="w-[100px]">Size</TableHead>
-                <TableHead className="w-[80px]">Qty</TableHead>
-                <TableHead className="w-[200px]">Purchased By</TableHead>
-                <TableHead className="w-[140px]">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="-ml-3 h-8 font-medium"
-                    onClick={() => handleSort("date")}
-                  >
-                    Date
-                    {sortField === "date" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4" />
-                    )}
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Select date range</DialogTitle>
+                </DialogHeader>
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setDateRange(undefined)}>
+                    Clear
                   </Button>
-                </TableHead>
-                <TableHead className="w-[120px]">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="-ml-3 h-8 font-medium"
-                    onClick={() => handleSort("amount")}
-                  >
-                    Amount
-                    {sortField === "amount" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4" />
-                    )}
-                  </Button>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-          </Table>
+                  <DialogClose asChild>
+                    <Button size="sm">Apply</Button>
+                  </DialogClose>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
-        {/* Scrollable Table Body */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <Table className="table-fixed">
-            <TableBody>
-              {sortedTransactions.length > 0 ? (
-                sortedTransactions.map((transaction) => (
+        <div className="bg-white border rounded-lg p-4 md:p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Filters</h2>
+                <p className="text-sm text-gray-500">
+                  Narrow down your search by time period or keywords
+                </p>
+              </div>
+              <Button variant="ghost" className="flex items-center gap-2" onClick={resetFilters}>
+                <X className="h-4 w-4" />
+                Clear filters
+              </Button>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={fetchTransactions} disabled={isLoading}>
+                {isLoading ? "Refreshing..." : "Refresh"}
+              </Button>
+              {error && <p className="text-sm text-red-500">{error}</p>}
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-4">
+            <span className="text-sm text-gray-500">
+              Showing {sortedTransactions.length} transaction
+              {sortedTransactions.length === 1 ? "" : "s"}
+            </span>
+            {dateRange?.from && (
+              <div className="flex items-center gap-1 text-sm text-gray-500">
+                <span>
+                  {format(dateRange.from, "MMM d, yyyy")} -{" "}
+                  {dateRange.to ? format(dateRange.to, "MMM d, yyyy") : "Present"}
+                </span>
+                <button
+                  className="p-1 rounded-full hover:bg-neutral-100"
+                  onClick={() => setDateRange(undefined)}
+                  aria-label="Clear date range"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-lg overflow-hidden">
+          {isLoading && transactions.length === 0 ? (
+            <div className="p-6 text-center text-sm text-gray-500">Loading transactions...</div>
+          ) : sortedTransactions.length === 0 ? (
+            <div className="p-6 text-center text-sm text-gray-500">
+              No transactions match your current filters.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Transaction ID</TableHead>
+                  <TableHead>Item</TableHead>
+                  <TableHead>Color</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead>Qty</TableHead>
+                  <TableHead>Purchased By</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => handleSort("date")}
+                  >
+                    <div className="flex items-center gap-2">
+                      Date
+                      {sortField === "date" ? (
+                        sortDirection === "asc" ? (
+                          <ArrowUp className="h-4 w-4" />
+                        ) : (
+                          <ArrowDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => handleSort("amount")}
+                  >
+                    <div className="flex items-center gap-2">
+                      Amount
+                      {sortField === "amount" ? (
+                        sortDirection === "asc" ? (
+                          <ArrowUp className="h-4 w-4" />
+                        ) : (
+                          <ArrowDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                      )}
+                    </div>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedTransactions.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell className="w-[240px] px-4">
-                      <div className="truncate">
-                        <h1 className="text-base font-medium">
-                          {transaction.itemName}
-                        </h1>
+                    <TableCell className="font-medium">{transaction.code}</TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{transaction.itemName}</p>
+                        {transaction.status && (
+                          <p className="text-xs text-gray-500 capitalize">{transaction.status}</p>
+                        )}
                       </div>
                     </TableCell>
-                    <TableCell className="w-[100px]">
-                      <span className="text-sm">{transaction.color}</span>
+                    <TableCell>{transaction.color}</TableCell>
+                    <TableCell>{transaction.size}</TableCell>
+                    <TableCell>{transaction.quantity}</TableCell>
+                    <TableCell>{transaction.purchasedBy}</TableCell>
+                    <TableCell>
+                      {transaction.date ? (
+                        <div className="flex flex-col">
+                          <span>{format(transaction.date, "MMMM d, yyyy")}</span>
+                          <span className="text-xs text-gray-500">
+                            {format(transaction.date, "h:mm a")}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-500">No date</span>
+                      )}
                     </TableCell>
-                    <TableCell className="w-[100px]">
-                      <span className="text-sm font-medium">
-                        {transaction.size}
-                      </span>
-                    </TableCell>
-                    <TableCell className="w-[80px]">
-                      <span className="text-sm font-medium">
-                        {transaction.quantity}
-                      </span>
-                    </TableCell>
-                    <TableCell className="w-[200px]">
-                      <div className="truncate">
-                        <span className="text-sm">{transaction.purchasedBy}</span>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">S${transaction.amount.toFixed(2)}</span>
+                        {transaction.paymentMethod && (
+                          <span className="text-xs text-gray-500 capitalize">
+                            {transaction.paymentMethod}
+                          </span>
+                        )}
                       </div>
-                    </TableCell>
-                    <TableCell className="w-[140px]">
-                      <span className="text-sm text-muted-foreground">
-                        {format(transaction.date, "MMM dd, yyyy")}
-                      </span>
-                    </TableCell>
-                    <TableCell className="w-[120px]">
-                      <span className="text-base font-display font-bold">
-                        $
-                        {transaction.amount.toLocaleString("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </span>
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="h-32 text-center text-muted-foreground"
-                  >
-                    No transactions found
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </div>
     </div>
@@ -417,4 +362,3 @@ const AdminTransactions = () => {
 };
 
 export default AdminTransactions;
-

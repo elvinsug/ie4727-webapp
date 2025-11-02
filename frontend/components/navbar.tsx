@@ -4,13 +4,15 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { LogIn, LogOut, Menu, SearchIcon, ShoppingBag, User, XCircle } from "lucide-react";
+import { Car, LogIn, LogOut, Menu, SearchIcon, ShoppingBag, User, XCircle } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import CartSheet from "./CartSheet";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
+const CART_STORAGE_KEY = "cartItems";
+const CHECKOUT_SNAPSHOT_KEY = "cartCheckoutSnapshot";
 
 const menuItems = [
   {
@@ -107,6 +109,9 @@ const Navbar = () => {
         throw new Error("Failed to log out");
       }
 
+      window.localStorage.removeItem(CART_STORAGE_KEY);
+      window.localStorage.removeItem(CHECKOUT_SNAPSHOT_KEY);
+      window.dispatchEvent(new Event("cartChange"));
       window.localStorage.removeItem("user");
       window.dispatchEvent(new Event("authChange"));
       setUser(null);
@@ -203,9 +208,7 @@ const Navbar = () => {
               <Button variant="ghost" size="icon-lg">
                 <User />
               </Button>
-              <Button variant="ghost" size="icon-lg">
-                <ShoppingBag />
-              </Button>
+              <CartSheet />
               <Button
                 variant="ghost"
                 size="icon-lg"

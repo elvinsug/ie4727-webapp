@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -13,12 +13,13 @@ import {
 import { Button } from "./ui/button";
 import { Minus, Plus, ShoppingBag, Trash2, X } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 // Cart item type based on your SQL schema
 interface CartItem {
   id: string;
   productId: number;
+  productOptionId: number;
   productName: string;
   color: string;
   size: string;
@@ -26,75 +27,188 @@ interface CartItem {
   discountPercentage: number;
   imageUrl: string;
   quantity: number;
+  stock: number;
 }
 
-// Mock cart data
-const mockCartItems: CartItem[] = [
-  {
-    id: "cart-1",
-    productId: 1,
-    productName: "BRIDGE BLUE",
-    color: "Light Blue",
-    size: "35",
-    price: 140.0,
-    discountPercentage: 0,
-    imageUrl: "/product/mock-image-1.webp",
-    quantity: 1,
-  },
-  {
-    id: "cart-2",
-    productId: 2,
-    productName: "SUNSET RUNNER",
-    color: "Orange",
-    size: "38",
-    price: 165.0,
-    discountPercentage: 15,
-    imageUrl: "/product/mock-image-2.webp",
-    quantity: 2,
-  },
-  {
-    id: "cart-3",
-    productId: 3,
-    productName: "URBAN STRIDE",
-    color: "Black",
-    size: "40",
-    price: 180.0,
-    discountPercentage: 10,
-    imageUrl: "/product/mock-image-1.webp",
-    quantity: 1,
-  },
-];
+const CART_STORAGE_KEY = "cartItems";
+const CHECKOUT_SNAPSHOT_KEY = "cartCheckoutSnapshot";
+const FALLBACK_IMAGE = "/product/mock-image-1.webp";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
 const CartSheet = () => {
-  const [cartItems, setCartItems] = useState<CartItem[]>(mockCartItems);
+  const router = useRouter();
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Update quantity
-  const updateQuantity = (id: string, newQuantity: number) => {
-    if (newQuantity < 1) return;
-    setCartItems(
-      cartItems.map((item) =>
-        item.id === id ? { ...item, quantity: newQuantity } : item
-      )
-    );
-  };
+  const persistCart = useCallback((items: CartItem[]) => {
+    if (typeof window === "undefined") {
+      return;
+    }
 
-  // Remove item from cart
-  const removeItem = (id: string) => {
-    setCartItems(cartItems.filter((item) => item.id !== id));
-  };
+    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+    window.dispatchEvent(new Event("cartChange"));
+  }, []);
 
-  // Calculate final price after discount
+  const syncCartFromStorage = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(CART_STORAGE_KEY);
+
+      if (!raw) {
+        setCartItems([]);
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+
+      if (!Array.isArray(parsed)) {
+        setCartItems([]);
+        return;
+      }
+
+      const normalized: CartItem[] = parsed
+        .map((item) => {
+          if (!item || typeof item !== "object") {
+            return null;
+          }
+
+          const productOptionId = Number((item as any).productOptionId);
+
+          if (!Number.isFinite(productOptionId)) {
+            return null;
+          }
+
+          const stockValue = Number((item as any).stock);
+          const maxStock =
+            Number.isFinite(stockValue) && stockValue > 0
+              ? stockValue
+              : Number.MAX_SAFE_INTEGER;
+
+          const quantityValue = Number((item as any).quantity);
+
+          return {
+            id: String(
+              (item as any).id ??
+                `${(item as any).productId ?? "item"}-${productOptionId}`
+            ),
+            productId: Number((item as any).productId) || productOptionId,
+            productOptionId,
+            productName: String((item as any).productName ?? "Product"),
+            color: String((item as any).color ?? ""),
+            size: String((item as any).size ?? ""),
+            price: Number((item as any).price) || 0,
+            discountPercentage: Number(
+              (item as any).discountPercentage
+            ) || 0,
+            imageUrl: String(
+              (item as any).imageUrl ?? FALLBACK_IMAGE
+            ),
+            quantity: Math.max(
+              1,
+              Math.min(
+                Number.isFinite(quantityValue) ? quantityValue : 1,
+                maxStock
+              )
+            ),
+            stock: maxStock,
+          };
+        })
+        .filter(Boolean) as CartItem[];
+
+      setCartItems(normalized);
+    } catch (error) {
+      console.error("Failed to parse cart from storage", error);
+      setCartItems([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncCartFromStorage();
+
+    const handleExternalChange = () => {
+      syncCartFromStorage();
+    };
+
+    window.addEventListener("storage", handleExternalChange);
+    window.addEventListener("cartChange", handleExternalChange);
+
+    return () => {
+      window.removeEventListener("storage", handleExternalChange);
+      window.removeEventListener("cartChange", handleExternalChange);
+    };
+  }, [syncCartFromStorage]);
+
+  const updateQuantity = useCallback(
+    (id: string, newQuantity: number) => {
+      setCartItems((prev) => {
+        const updated = prev.map((item) => {
+          if (item.id !== id) {
+            return item;
+          }
+
+          const maxQuantity =
+            item.stock && Number.isFinite(item.stock)
+              ? Math.max(1, item.stock)
+              : Number.MAX_SAFE_INTEGER;
+
+          const clamped = Math.max(
+            1,
+            Math.min(newQuantity, maxQuantity)
+          );
+
+          return { ...item, quantity: clamped };
+        });
+
+        persistCart(updated);
+        return updated;
+      });
+    },
+    [persistCart]
+  );
+
+  const removeItem = useCallback(
+    (id: string) => {
+      setCartItems((prev) => {
+        const updated = prev.filter((item) => item.id !== id);
+        persistCart(updated);
+        return updated;
+      });
+    },
+    [persistCart]
+  );
+
   const getFinalPrice = (price: number, discountPercentage: number) => {
     return price * (1 - discountPercentage / 100);
   };
 
-  // Calculate total
-  const calculateTotal = () => {
-    return cartItems.reduce((total, item) => {
+  const total = useMemo(() => {
+    return cartItems.reduce((runningTotal, item) => {
       const finalPrice = getFinalPrice(item.price, item.discountPercentage);
-      return total + finalPrice * item.quantity;
+      return runningTotal + finalPrice * item.quantity;
     }, 0);
+  }, [cartItems]);
+
+  const itemCount = cartItems.length;
+
+  const handleCheckout = () => {
+    if (cartItems.length === 0) {
+      return;
+    }
+
+    // Save cart snapshot for checkout page
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        CHECKOUT_SNAPSHOT_KEY,
+        JSON.stringify(cartItems)
+      );
+    }
+
+    setIsOpen(false);
+    router.push("/checkout");
   };
 
   return (
@@ -102,9 +216,9 @@ const CartSheet = () => {
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon-lg" className="relative">
           <ShoppingBag />
-          {cartItems.length > 0 && (
+          {itemCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-black text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-              {cartItems.length}
+              {itemCount}
             </span>
           )}
         </Button>
@@ -114,7 +228,7 @@ const CartSheet = () => {
         <SheetHeader className="border-b px-6 py-4 shrink-0">
           <div className="flex items-center justify-between">
             <SheetTitle className="text-2xl font-bold">
-              Shopping Cart ({cartItems.length})
+              Shopping Cart ({itemCount})
             </SheetTitle>
             <SheetClose asChild>
               <Button variant="outline" size="icon-lg" className="rounded-full">
@@ -212,7 +326,12 @@ const CartSheet = () => {
                           </span>
                           <button
                             onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            className="text-gray-600 hover:text-black transition-colors"
+                            className="text-gray-600 hover:text-black transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            disabled={
+                              Number.isFinite(item.stock) &&
+                              item.stock > 0 &&
+                              item.quantity >= item.stock
+                            }
                             aria-label="Increase quantity"
                           >
                             <Plus className="w-4 h-4" />
@@ -235,20 +354,18 @@ const CartSheet = () => {
               <div className="flex items-center justify-between">
                 <span className="text-lg font-semibold">Total</span>
                 <span className="text-2xl font-bold">
-                  S${calculateTotal().toFixed(2)}
+                  S${total.toFixed(2)}
                 </span>
               </div>
 
               {/* Checkout Button */}
-              <Link 
-                href="/checkout" 
+              <Button
+                size="lg"
                 className="w-full"
-                onClick={() => setIsOpen(false)}
+                onClick={handleCheckout}
               >
-                <Button size="lg" className="w-full">
-                  CHECKOUT
-                </Button>
-              </Link>
+                CHECKOUT
+              </Button>
             </div>
           </SheetFooter>
         )}
@@ -258,4 +375,3 @@ const CartSheet = () => {
 };
 
 export default CartSheet;
-

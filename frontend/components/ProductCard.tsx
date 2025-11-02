@@ -63,7 +63,7 @@ ProductCardProps) => {
       className="flex flex-col gap-3 cursor-pointer"
     >
       <div className="relative w-full aspect-10/12">
-        <Link className="w-full h-auto" href={`/products/${id}`}>
+        <Link className="w-full h-auto" href={`/products/details?id=${id}`}>
           <img
             src={image}
             alt={name}
@@ -72,7 +72,7 @@ ProductCardProps) => {
             } ease-in duration-200 absolute z-10 inset-0`}
           />
         </Link>
-        <Link className="w-full h-auto" href={`/products/${id}`}>
+        <Link className="w-full h-auto" href={`/products/details?id=${id}`}>
           <img
             src={image2}
             alt={name}
@@ -101,7 +101,10 @@ ProductCardProps) => {
           </div>
         )}
       </div>
-      <Link href={`/products/${id}`} className="flex flex-col font-medium">
+      <Link
+        href={`/products/details?id=${id}`}
+        className="flex flex-col font-medium"
+      >
         <h6 className="font-display font-medium text-lg uppercase">{name}</h6>
         <div className="flex gap-2 items-center">
           <h6 className={`${discount > 0 ? "line-through" : ""}`}>S${price}</h6>

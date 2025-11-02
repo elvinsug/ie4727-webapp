@@ -22,6 +22,8 @@ import { usePathname, useRouter } from "next/navigation";
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
+const CART_STORAGE_KEY = "cartItems";
+const CHECKOUT_SNAPSHOT_KEY = "cartCheckoutSnapshot";
 
 const MenuList = ({
   icon,
@@ -55,10 +57,11 @@ export default function RootLayout({
 }>) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<{ name: string; email: string } | null>(
+  const [user, setUser] = useState<{ name: string; email: string; role?: string } | null>(
     null
   );
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const loadUserFromStorage = useCallback(() => {
     if (typeof window === "undefined") {
@@ -78,6 +81,7 @@ export default function RootLayout({
         name?: string;
         first_name?: string;
         last_name?: string;
+        role?: string;
       };
 
       if (!stored?.email) {
@@ -96,6 +100,7 @@ export default function RootLayout({
       setUser({
         name: derivedName,
         email: stored.email,
+        role: stored.role,
       });
     } catch (error) {
       console.error("Failed to parse stored user", error);
@@ -117,6 +122,43 @@ export default function RootLayout({
     };
   }, [loadUserFromStorage]);
 
+  // Check if user is admin
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const checkAdminAccess = () => {
+      try {
+        const raw = window.localStorage.getItem("user");
+
+        if (!raw) {
+          // No user logged in
+          alert("Access denied. You must be logged in as an admin to access this page.");
+          router.push("/");
+          return;
+        }
+
+        const stored = JSON.parse(raw) as { role?: string };
+
+        if (stored.role !== "admin") {
+          // User is not admin
+          alert("Access denied. You must be an admin to access this page.");
+          router.push("/");
+          return;
+        }
+
+        setIsCheckingAuth(false);
+      } catch (error) {
+        console.error("Failed to check admin access", error);
+        alert("Access denied. You must be an admin to access this page.");
+        router.push("/");
+      }
+    };
+
+    checkAdminAccess();
+  }, [router]);
+
   const handleLogout = useCallback(async () => {
     if (isLoggingOut) {
       return;
@@ -134,6 +176,9 @@ export default function RootLayout({
         throw new Error("Failed to log out");
       }
 
+      window.localStorage.removeItem(CART_STORAGE_KEY);
+      window.localStorage.removeItem(CHECKOUT_SNAPSHOT_KEY);
+      window.dispatchEvent(new Event("cartChange"));
       window.localStorage.removeItem("user");
       window.dispatchEvent(new Event("authChange"));
       setUser(null);
@@ -146,9 +191,24 @@ export default function RootLayout({
   }, [isLoggingOut, router]);
 
   // Normalize pathname by removing trailing slash
-  const normalizedPath = pathname.endsWith('/') && pathname !== '/' 
-    ? pathname.slice(0, -1) 
+  const normalizedPath = pathname.endsWith('/') && pathname !== '/'
+    ? pathname.slice(0, -1)
     : pathname;
+
+  // Show loading state while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <html lang="en">
+        <body className={`${fontDisplay.variable} ${fontText.variable} antialiased`}>
+          <div className="min-h-screen flex items-center justify-center bg-neutral-100">
+            <div className="text-center">
+              <p className="text-lg text-gray-600">Loading...</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    );
+  }
 
   return (
     <html lang="en">

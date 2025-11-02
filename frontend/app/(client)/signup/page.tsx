@@ -19,6 +19,8 @@ const SignUpPage = () => {
     email: "",
     password: "",
   });
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in via session
@@ -50,10 +52,44 @@ const SignUpPage = () => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle sign up logic here
-    console.log("Sign up:", formData);
+    setError("");
+    setIsLoading(true);
+
+    try {
+      // Create FormData for PHP backend
+      const formDataToSend = new FormData();
+      formDataToSend.append("email", formData.email);
+      formDataToSend.append("password", formData.password);
+
+      const response = await fetch(`${API_URL}/signup.php`, {
+        method: "POST",
+        body: formDataToSend,
+        credentials: "include", // Important for session cookies
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Signup failed");
+      }
+
+      if (data.success) {
+        // Store user data in localStorage
+        localStorage.setItem("user", JSON.stringify(data.user));
+
+        // Dispatch custom event to notify navbar and other components
+        window.dispatchEvent(new Event("authChange"));
+
+        // Redirect to home page
+        router.push("/");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred during signup");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -74,6 +110,12 @@ const SignUpPage = () => {
           <h1 className="text-2xl font-semibold text-center mb-8 text-gray-900">
             Create your account
           </h1>
+
+          {error && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 mb-5">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name Fields Row */}
@@ -211,9 +253,10 @@ const SignUpPage = () => {
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-11 bg-black hover:bg-gray-800 text-white font-medium rounded-lg transition-colors"
+              disabled={isLoading}
+              className="w-full h-11 bg-black hover:bg-gray-800 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create account
+              {isLoading ? "Creating account..." : "Create account"}
             </Button>
           </form>
 

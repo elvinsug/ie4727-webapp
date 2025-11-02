@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,35 +23,11 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 
-// Mock cart items matching the images
-const mockCartItems = [
-  {
-    id: 1,
-    name: "BRIDGE BLUE",
-    size: "35",
-    price: 140.0,
-    quantity: 1,
-    image: "/product/mock-image-1.webp",
-  },
-  {
-    id: 2,
-    name: "PARK NUDE WOMAN",
-    size: "42",
-    price: 130.0,
-    quantity: 1,
-    image: "/product/mock-image-2.webp",
-  },
-  {
-    id: 3,
-    name: "CHARMS BEIGE",
-    size: "U",
-    price: 30.0,
-    quantity: 1,
-    image: "/product/mock-image-1.webp",
-  },
-];
-
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
+const CART_STORAGE_KEY = "cartItems";
+const CHECKOUT_SNAPSHOT_KEY = "cartCheckoutSnapshot";
+const FALLBACK_IMAGE = "/product/mock-image-1.webp";
 
 // Singapore postal districts and regions
 const singaporePostalDistricts = [
@@ -108,10 +84,27 @@ interface PaymentFormData {
   acceptedPrivacy: boolean;
 }
 
+interface CartItem {
+  id: string;
+  productId: number;
+  productOptionId: number;
+  productName: string;
+  color: string;
+  size: string;
+  price: number;
+  discountPercentage: number;
+  imageUrl: string;
+  quantity: number;
+  stock: number;
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("shipping");
   const [discountCode, setDiscountCode] = useState("");
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isCartReady, setIsCartReady] = useState(false);
+  const [cartError, setCartError] = useState<string | null>(null);
 
   // Shipping form state
   const [shippingForm, setShippingForm] = useState<ShippingFormData>({
@@ -145,15 +138,147 @@ export default function CheckoutPage() {
     Partial<Record<keyof PaymentFormData, string>>
   >({});
 
-  // Calculate totals
-  const subtotal = mockCartItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-  const shipping = step === "payment" ? 0 : null; // FREE shipping
+  // Processing state
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [processingError, setProcessingError] = useState<string | null>(null);
+
+  const syncCartFromStorage = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const rawSnapshot = window.localStorage.getItem(CHECKOUT_SNAPSHOT_KEY);
+      const rawCart = window.localStorage.getItem(CART_STORAGE_KEY);
+
+      let parsed: unknown = null;
+
+      if (rawSnapshot) {
+        try {
+          parsed = JSON.parse(rawSnapshot);
+        } catch (parseError) {
+          console.error("Failed to parse checkout snapshot JSON", parseError);
+          parsed = null;
+        }
+      }
+
+      if (!parsed && rawCart) {
+        try {
+          parsed = JSON.parse(rawCart);
+        } catch (parseError) {
+          console.error("Failed to parse cart JSON", parseError);
+          parsed = null;
+        }
+      }
+
+      if (!parsed) {
+        setCartItems([]);
+        setCartError(null);
+        setIsCartReady(true);
+        return;
+      }
+
+      if (!Array.isArray(parsed)) {
+        setCartItems([]);
+        setCartError(null);
+        setIsCartReady(true);
+        return;
+      }
+
+      const normalized: CartItem[] = parsed
+        .map((item) => {
+          if (!item || typeof item !== "object") {
+            return null;
+          }
+
+          const productOptionId = Number((item as any).productOptionId);
+
+          if (!Number.isFinite(productOptionId)) {
+            return null;
+          }
+
+          const quantityValue = Number((item as any).quantity);
+          const stockValue = Number((item as any).stock);
+          const maxStock =
+            Number.isFinite(stockValue) && stockValue > 0
+              ? stockValue
+              : Number.MAX_SAFE_INTEGER;
+
+          return {
+            id: String(
+              (item as any).id ??
+                `${(item as any).productId ?? "item"}-${productOptionId}`
+            ),
+            productId: Number((item as any).productId) || productOptionId,
+            productOptionId,
+            productName: String((item as any).productName ?? "Product"),
+            color: String((item as any).color ?? ""),
+            size: String((item as any).size ?? ""),
+            price: Number((item as any).price) || 0,
+            discountPercentage:
+              Number((item as any).discountPercentage) || 0,
+            imageUrl: String(
+              (item as any).imageUrl ?? FALLBACK_IMAGE
+            ),
+            quantity: Math.max(
+              1,
+              Math.min(
+                Number.isFinite(quantityValue) ? quantityValue : 1,
+                maxStock
+              )
+            ),
+            stock: maxStock,
+          };
+        })
+        .filter(Boolean) as CartItem[];
+
+      setCartItems(normalized);
+      setCartError(null);
+    } catch (error) {
+      console.error("Failed to load cart from storage", error);
+      setCartItems([]);
+      setCartError("Unable to load cart items.");
+    } finally {
+      setIsCartReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncCartFromStorage();
+
+    const handleSync = () => {
+      syncCartFromStorage();
+    };
+
+    window.addEventListener("storage", handleSync);
+    window.addEventListener("cartChange", handleSync);
+
+    return () => {
+      window.removeEventListener("storage", handleSync);
+      window.removeEventListener("cartChange", handleSync);
+    };
+  }, [syncCartFromStorage]);
+
+  const getFinalPrice = useCallback((price: number, discount: number) => {
+    return price * (1 - discount / 100);
+  }, []);
+
+  const subtotal = useMemo(() => {
+    return cartItems.reduce((sum, item) => {
+      const finalPrice = getFinalPrice(item.price, item.discountPercentage);
+      return sum + finalPrice * item.quantity;
+    }, 0);
+  }, [cartItems, getFinalPrice]);
+
   const tax = subtotal * 0.09; // 9% GST
   const total = subtotal + tax;
+  const itemCount = cartItems.reduce(
+    (count, item) => count + item.quantity,
+    0
+  );
+  const shipping = cartItems.length === 0 ? 0 : step === "payment" ? 0 : null;
 
+  // Calculate totals
   // Validate Singapore postal code
   const validatePostalCode = (code: string): boolean => {
     return /^\d{6}$/.test(code);
@@ -272,7 +397,7 @@ export default function CheckoutPage() {
   };
 
   // Handle payment form submission
-  const handlePaymentSubmit = (e: React.FormEvent) => {
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Partial<Record<keyof PaymentFormData, string>> = {};
 
@@ -305,8 +430,73 @@ export default function CheckoutPage() {
     setPaymentErrors(errors);
 
     if (Object.keys(errors).length === 0) {
-      // Process payment and navigate to result page
-      router.push("/checkout/result");
+      setIsProcessingPayment(true);
+      setProcessingError(null);
+
+      try {
+        // Build shipping address string
+        const shippingAddress = [
+          shippingForm.address,
+          shippingForm.apartment,
+          shippingForm.postalCode,
+          shippingForm.region,
+          "Singapore",
+        ]
+          .filter(Boolean)
+          .join(", ");
+
+        // Process each cart item purchase
+        for (const item of cartItems) {
+          const formData = new FormData();
+          formData.append("product_option_id", String(item.productOptionId));
+          formData.append("quantity", String(item.quantity));
+          formData.append("payment_method", "Credit Card");
+          formData.append("shipping_address", shippingAddress);
+          formData.append(
+            "notes",
+            `Customer: ${shippingForm.firstName} ${shippingForm.lastName}, Phone: ${shippingForm.phone}, Delivery: ${shippingForm.deliveryMethod}`
+          );
+
+          const response = await fetch(`${API_URL}/buy_product_options.php`, {
+            method: "POST",
+            body: formData,
+            credentials: "include",
+          });
+
+          let payload: any = null;
+
+          try {
+            payload = await response.json();
+          } catch (parseError) {
+            payload = null;
+          }
+
+          if (!response.ok || !payload?.success) {
+            throw new Error(
+              payload?.error || `Failed to process purchase for ${item.productName}`
+            );
+          }
+        }
+
+        // Clear cart after successful purchase
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(CART_STORAGE_KEY);
+          window.localStorage.removeItem(CHECKOUT_SNAPSHOT_KEY);
+          window.dispatchEvent(new Event("cartChange"));
+        }
+
+        setCartItems([]);
+
+        // Navigate to result page
+        router.push("/checkout/result");
+      } catch (error) {
+        setProcessingError(
+          error instanceof Error
+            ? error.message
+            : "Unable to complete payment. Please try again."
+        );
+        setIsProcessingPayment(false);
+      }
     }
   };
 
@@ -957,12 +1147,20 @@ export default function CheckoutPage() {
                     )}
                   </div>
 
+                  {/* Processing Error */}
+                  {processingError && (
+                    <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+                      <p className="text-sm text-red-600">{processingError}</p>
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="flex items-center justify-between pt-4">
                     <button
                       type="button"
                       onClick={() => setStep("shipping")}
                       className="flex items-center gap-2 text-sm hover:underline"
+                      disabled={isProcessingPayment}
                     >
                       <ChevronLeft className="w-4 h-4" />
                       Return to shipping
@@ -971,8 +1169,9 @@ export default function CheckoutPage() {
                       type="submit"
                       size="lg"
                       className="px-8"
+                      disabled={isProcessingPayment}
                     >
-                      Pay now
+                      {isProcessingPayment ? "Processing..." : "Pay now"}
                     </Button>
                   </div>
 
@@ -1003,15 +1202,29 @@ export default function CheckoutPage() {
           <div className="bg-neutral-50 overflow-y-auto h-screen">
             <div className="max-w-xl mx-auto px-6 py-8 lg:px-12 lg:py-12">
               {/* Order Items */}
-              <div className="space-y-4 mb-6">
-                {mockCartItems.map((item) => (
-                  <div key={item.id} className="flex gap-4">
+                <div className="space-y-4 mb-6">
+                {isCartReady && cartItems.length === 0 && (
+                  <p className="text-sm text-gray-600">
+                    Your cart is currently empty.
+                  </p>
+                )}
+                {cartError && (
+                  <p className="text-sm text-red-500">{cartError}</p>
+                )}
+                {cartItems.map((item) => {
+                  const finalPrice = getFinalPrice(
+                    item.price,
+                    item.discountPercentage
+                  );
+
+                  return (
+                    <div key={item.id} className="flex gap-4">
                     {/* Product Image with Quantity Badge */}
                     <div className="relative">
                       <div className="w-16 h-16 bg-white rounded-lg border border-gray-200 overflow-hidden">
                         <Image
-                          src={item.image}
-                          alt={item.name}
+                          src={item.imageUrl || FALLBACK_IMAGE}
+                          alt={item.productName}
                           width={64}
                           height={64}
                           className="w-full h-full object-cover"
@@ -1026,10 +1239,12 @@ export default function CheckoutPage() {
                     <div className="flex-1 flex items-start justify-between">
                       <div>
                         <h3 className="font-bold text-sm mb-0.5">
-                          {item.name}
+                          {item.productName}
                         </h3>
                         <p className="text-xs text-gray-600 mb-1">
-                          {item.size}
+                          {[item.color, `Size ${item.size}`]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </p>
                         <button
                           type="button"
@@ -1039,11 +1254,12 @@ export default function CheckoutPage() {
                         </button>
                       </div>
                       <p className="font-bold text-sm">
-                        S${item.price.toFixed(2)}
+                        S${finalPrice.toFixed(2)}
                       </p>
                     </div>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Discount Code */}
@@ -1069,7 +1285,7 @@ export default function CheckoutPage() {
               <div className="space-y-3 pt-6 border-t border-gray-300">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-700">
-                    Subtotal · {mockCartItems.length} items
+                    Subtotal · {itemCount} {itemCount === 1 ? "item" : "items"}
                   </span>
                   <span className="font-medium">S${subtotal.toFixed(2)}</span>
                 </div>
@@ -1110,4 +1326,3 @@ export default function CheckoutPage() {
     </div>
   );
 }
-
