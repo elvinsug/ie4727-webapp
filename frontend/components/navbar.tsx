@@ -4,13 +4,12 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { LogIn, LogOut, Menu, SearchIcon, ShoppingBag, User, XCircle } from "lucide-react";
+import { LogIn, LogOut, Menu, SearchIcon, User, XCircle } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import CartSheet from "./CartSheet";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
 const menuItems = [
   {
@@ -31,7 +30,9 @@ const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [user, setUser] = useState<{ email: string; role?: string } | null>(null);
+  const [user, setUser] = useState<{ email: string; role?: string } | null>(
+    null
+  );
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -82,7 +83,8 @@ const Navbar = () => {
     };
   }, [syncUserFromStorage]);
 
-  const isLoggedIn = Boolean(user);
+  // const isLoggedIn = Boolean(user);
+  const isLoggedIn = true;
 
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current) {
@@ -200,12 +202,12 @@ const Navbar = () => {
 
           {isLoggedIn ? (
             <>
-              <Button variant="ghost" size="icon-lg">
-                <User />
-              </Button>
-              <Button variant="ghost" size="icon-lg">
-                <ShoppingBag />
-              </Button>
+              <Link href="/user">
+                <Button variant="ghost" size="icon-lg">
+                  <User />
+                </Button>
+              </Link>
+              <CartSheet />
               <Button
                 variant="ghost"
                 size="icon-lg"

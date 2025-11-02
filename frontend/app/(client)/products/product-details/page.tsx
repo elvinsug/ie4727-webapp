@@ -396,7 +396,8 @@ export default function ProductDetailsPage() {
               name={product.name}
               price={product.price}
               discount={product.discount}
-              image={product.image}
+              image={product.image[0]}
+              image2={product.image[1]}
               sizes={product.sizes}
             />
           ))}
