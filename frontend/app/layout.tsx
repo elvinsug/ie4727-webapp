@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { fontDisplay, fontText } from "@/fonts/font";
 import "./globals.css";
 import Navbar from "@/components/navbar";
@@ -20,7 +21,9 @@ export default function RootLayout({
       <body
         className={`${fontDisplay.variable} ${fontText.variable} antialiased`}
       >
-        <Navbar />
+        <Suspense fallback={<div />}>
+          <Navbar />
+        </Suspense>
         {children}
       </body>
     </html>
