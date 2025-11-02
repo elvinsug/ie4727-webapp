@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   ChevronRight,
@@ -14,12 +14,10 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import ProductCard from "@/components/ProductCard";
-import { useSearchParams } from "next/navigation";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
-const CART_STORAGE_KEY = "cartItems";
 
 type ProductOption = {
   id: number;
@@ -28,20 +26,6 @@ type ProductOption = {
   discount_percentage: number;
   stock: number;
 };
-
-const ProductDetailsPage = () => (
-  <Suspense
-    fallback={
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <p className="text-gray-600">Loading product...</p>
-      </div>
-    }
-  >
-    <DetailsContent />
-  </Suspense>
-);
-
-export default ProductDetailsPage;
 
 type ProductColor = {
   id: number;
@@ -61,70 +45,11 @@ type Product = {
   colors: ProductColor[];
 };
 
-type CartStorageItem = {
-  id: string;
-  productId: number;
-  productOptionId: number;
-  productName: string;
-  color: string;
-  size: string;
-  price: number;
-  discountPercentage: number;
-  imageUrl: string;
-  quantity: number;
-  stock: number;
-};
-
-const recommendedProducts = [
-  {
-    id: 2,
-    name: "RUNNER BLUE",
-    price: 150,
-    discount: 10,
-    image: [
-      `${BASE_PATH}/product/mock-image-1.webp`,
-      `${BASE_PATH}/product/mock-image-2.webp`,
-    ],
-    sizes: ["35", "36", "37", "38", "39", "40"],
-  },
-  {
-    id: 3,
-    name: "CLASSIC WHITE",
-    price: 140,
-    discount: 0,
-    image: [
-      `${BASE_PATH}/product/mock-image-2.webp`,
-      `${BASE_PATH}/product/mock-image-1.webp`,
-    ],
-    sizes: ["36", "37", "38", "39", "40", "41"],
-  },
-  {
-    id: 4,
-    name: "URBAN BLACK",
-    price: 170,
-    discount: 15,
-    image: [
-      `${BASE_PATH}/product/mock-image-1.webp`,
-      `${BASE_PATH}/product/mock-image-2.webp`,
-    ],
-    sizes: ["35", "36", "37", "38", "39"],
-  },
-  {
-    id: 5,
-    name: "SPORT GREY",
-    price: 155,
-    discount: 0,
-    image: [
-      `${BASE_PATH}/product/mock-image-2.webp`,
-      `${BASE_PATH}/product/mock-image-1.webp`,
-    ],
-    sizes: ["37", "38", "39", "40", "41", "42"],
-  },
-];
-
-function DetailsContent() {
-  const searchParams = useSearchParams();
-  const productId = searchParams.get("id");
+export default function ProductDetailsPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,22 +64,11 @@ function DetailsContent() {
 
     const fetchProduct = async () => {
       try {
-        if (!productId) {
-          if (isMounted) {
-            setProduct(null);
-            setSelectedColorId(null);
-            setSelectedSize("");
-            setError("Product not found");
-            setIsLoading(false);
-          }
-          return;
-        }
-
         setIsLoading(true);
         setError(null);
 
         const response = await fetch(
-          `${API_URL}/get_product.php?id=${encodeURIComponent(productId)}`,
+          `${API_URL}/get_product.php?id=${encodeURIComponent(params.id)}`,
           {
             method: "GET",
             credentials: "include",
@@ -215,7 +129,7 @@ function DetailsContent() {
       isMounted = false;
       controller.abort();
     };
-  }, [productId]);
+  }, [params.id]);
 
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);
@@ -247,107 +161,7 @@ function DetailsContent() {
       alert(`Only ${selectedOption.stock} items available`);
       return;
     }
-
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const fallbackImage =
-      selectedColor?.image_url ||
-      selectedColor?.image_url_2 ||
-      `${BASE_PATH}/product/mock-image-1.webp`;
-
-    const cartItem: CartStorageItem = {
-      id: `${product.id}-${selectedOption.id}`,
-      productId: product.id,
-      productOptionId: selectedOption.id,
-      productName: product.name,
-      color: selectedColor?.color ?? "",
-      size: selectedOption.size,
-      price: selectedOption.price,
-      discountPercentage: selectedOption.discount_percentage,
-      imageUrl: fallbackImage,
-      quantity,
-      stock: selectedOption.stock,
-    };
-
-    try {
-      const raw = window.localStorage.getItem(CART_STORAGE_KEY);
-      let existingData: unknown = [];
-
-      if (raw) {
-        try {
-          existingData = JSON.parse(raw);
-        } catch (parseError) {
-          existingData = [];
-        }
-      }
-
-      const existing = Array.isArray(existingData)
-        ? (existingData as CartStorageItem[])
-        : [];
-
-      let updatedCart: CartStorageItem[] = [];
-      let cappedQuantity = false;
-
-      if (existing.length > 0) {
-        let found = false;
-        updatedCart = existing.map((item) => {
-          if (
-            item &&
-            typeof item === "object" &&
-            item.productOptionId === cartItem.productOptionId
-          ) {
-            found = true;
-            const previousQuantity = item.quantity ?? 0;
-            const combinedQuantity = Math.min(
-              previousQuantity + quantity,
-              cartItem.stock
-            );
-
-            if (combinedQuantity === previousQuantity) {
-              cappedQuantity = true;
-            }
-
-            return {
-              ...item,
-              quantity: combinedQuantity,
-              stock: cartItem.stock,
-              price: cartItem.price,
-              discountPercentage: cartItem.discountPercentage,
-              imageUrl: cartItem.imageUrl,
-              productName: cartItem.productName,
-              color: cartItem.color,
-              size: cartItem.size,
-            };
-          }
-          return item as CartStorageItem;
-        });
-
-        if (!found) {
-          updatedCart = [...existing, cartItem];
-        }
-      } else {
-        updatedCart = [cartItem];
-      }
-
-      window.localStorage.setItem(
-        CART_STORAGE_KEY,
-        JSON.stringify(updatedCart)
-      );
-      window.dispatchEvent(new Event("cartChange"));
-
-      if (cappedQuantity) {
-        alert("You have reached the maximum available stock for this item.");
-      } else {
-        alert(`Added ${quantity} item(s) to cart`);
-      }
-
-      setQuantity(1);
-    } catch (storageError) {
-      console.error("Failed to update cart", storageError);
-      alert("Unable to add item to cart at this time.");
-    }
+    alert(`Added ${quantity} item(s) to cart`);
   };
 
   if (isLoading) {
