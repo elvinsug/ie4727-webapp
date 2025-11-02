@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { LogIn, LogOut, Menu, SearchIcon, ShoppingBag, User, XCircle } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
+import CartSheet from "./CartSheet";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const API_URL =

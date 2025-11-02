@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { fontDisplay, fontText } from "@/fonts/font";
 import "../globals.css";
-import Navbar from "@/components/navbar";
 import { Suspense } from "react";
+import Navbar from "@/components/navbar";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
