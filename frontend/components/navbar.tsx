@@ -4,15 +4,12 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { LogIn, LogOut, Menu, SearchIcon, User, XCircle } from "lucide-react";
 import { Car, LogIn, LogOut, Menu, SearchIcon, ShoppingBag, User, XCircle } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import CartSheet from "./CartSheet";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 const CART_STORAGE_KEY = "cartItems";
 const CHECKOUT_SNAPSHOT_KEY = "cartCheckoutSnapshot";
 
@@ -35,9 +32,6 @@ const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [user, setUser] = useState<{ email: string; role?: string } | null>(
-    null
-  );
   const [user, setUser] = useState<{ email: string; role?: string } | null>(
     null
   );
@@ -91,8 +85,6 @@ const Navbar = () => {
     };
   }, [syncUserFromStorage]);
 
-  // const isLoggedIn = Boolean(user);
-  const isLoggedIn = true;
   // const isLoggedIn = Boolean(user);
   const isLoggedIn = true;
 
