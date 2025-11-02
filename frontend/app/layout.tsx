@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { fontDisplay, fontText } from "@/fonts/font";
 import "./globals.css";
 import Navbar from "@/components/navbar";
+import { Suspense } from "react";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
@@ -20,7 +21,9 @@ export default function RootLayout({
       <body
         className={`${fontDisplay.variable} ${fontText.variable} antialiased`}
       >
-        <Navbar />
+        <Suspense fallback={<div />}>
+          <Navbar />
+        </Suspense>
         {children}
       </body>
     </html>

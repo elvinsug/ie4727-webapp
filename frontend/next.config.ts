@@ -2,14 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "export",
-  basePath: '/nova',
-  assetPrefix: '/nova/',
+  basePath: '/miona',
+  assetPrefix: '/miona/',
   images: {
     unoptimized: true,
   },
   env: {
-    NEXT_PUBLIC_BASE_PATH: "/nova"
-  }
+    NEXT_PUBLIC_BASE_PATH: "/miona"
+  },
+  trailingSlash: true,
 };
 
 
