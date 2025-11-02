@@ -6,8 +6,6 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -20,20 +18,21 @@ const ForgotPasswordPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4 py-12">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-linear-to-br from-gray-50 to-gray-100 px-4 py-12">
       {/* Logo */}
       <div className="mb-12">
         <Image
-          src={`${BASE_PATH}/logo-black.svg`}
+          src="/logo-black.svg"
           alt="Logo"
-          width={251}
-          height={48}
+          width={80}
+          height={80}
+          className="w-20 h-20"
         />
       </div>
 
       {/* Forgot Password Form Container */}
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl border border-gray-200 p-8">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
           {!isSubmitted ? (
             <>
               <h1 className="text-2xl font-semibold text-center mb-3 text-gray-900">
@@ -124,3 +123,4 @@ const ForgotPasswordPage = () => {
 };
 
 export default ForgotPasswordPage;
+

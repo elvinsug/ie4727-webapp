@@ -4,8 +4,6 @@ const nextConfig: NextConfig = {
   output: "export",
   basePath: '/miona',
   assetPrefix: '/miona/',
-  basePath: '/miona',
-  assetPrefix: '/miona/',
   images: {
     unoptimized: true,
   },

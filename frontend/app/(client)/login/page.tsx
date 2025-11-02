@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -17,6 +17,29 @@ const LoginPage = () => {
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
+
+	useEffect(() => {
+		// Check if user is already logged in via session
+		const checkAuth = async () => {
+			try {
+				const response = await fetch(`${API_URL}/check_auth.php`, {
+					method: "GET",
+					credentials: "include",
+				});
+
+				const data = await response.json();
+
+				if (data.authenticated) {
+					// User is logged in, redirect to home
+					router.push("/");
+				}
+			} catch (error) {
+				console.error("Auth check failed:", error);
+			}
+		};
+
+		checkAuth();
+	}, [router]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -45,6 +68,9 @@ const LoginPage = () => {
 				// Store user data in localStorage
 				localStorage.setItem("user", JSON.stringify(data.user));
 
+				// Dispatch custom event to notify navbar and other components
+				window.dispatchEvent(new Event("authChange"));
+
 				// Redirect based on user role
 				if (data.user.role === "admin") {
 					router.push("/admin");
@@ -61,7 +87,6 @@ const LoginPage = () => {
 
 	return (
 		<div className="min-h-screen flex flex-col items-center justify-center bg-white px-4 py-12">
-			{/* Logo */}
 			<div className="mb-12">
 				<Image
 					src={`${BASE_PATH}/logo-black.svg`}
@@ -71,7 +96,6 @@ const LoginPage = () => {
 				/>
 			</div>
 
-			{/* Login Form Container */}
 			<div className="w-full max-w-md">
 				<div className="bg-white rounded-2xl border border-gray-200 p-8">
 					<h1 className="text-2xl font-semibold text-center mb-8 text-gray-900">

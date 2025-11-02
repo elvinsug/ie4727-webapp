@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
 const SignUpPage = () => {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -16,6 +19,29 @@ const SignUpPage = () => {
     email: "",
     password: "",
   });
+
+  useEffect(() => {
+    // Check if user is already logged in via session
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${API_URL}/check_auth.php`, {
+          method: "GET",
+          credentials: "include",
+        });
+
+        const data = await response.json();
+
+        if (data.authenticated) {
+          // User is logged in, redirect to home
+          router.push("/");
+        }
+      } catch (error) {
+        console.error("Auth check failed:", error);
+      }
+    };
+
+    checkAuth();
+  }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({

@@ -184,12 +184,21 @@ export default function AdminPage() {
             });
 
             if (response.ok) {
+                // Clear user data from localStorage
+                localStorage.removeItem("user");
+
+                // Dispatch custom event to notify navbar and other components
+                window.dispatchEvent(new Event("authChange"));
+
                 router.push("/login");
             } else {
                 throw new Error("Logout failed");
             }
         } catch (err) {
             console.error("Logout error:", err);
+            // Clear localStorage even on error
+            localStorage.removeItem("user");
+            window.dispatchEvent(new Event("authChange"));
             router.push("/login");
         }
     };
