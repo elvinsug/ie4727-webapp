@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { fontDisplay, fontText } from "@/fonts/font";
 import "./globals.css";
 import Navbar from "@/components/navbar";
