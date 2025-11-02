@@ -6,8 +6,17 @@ import { usePathname, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useState, useEffect, Suspense } from "react";
 import FilterSheet from "@/components/FilterSheet";
+import ProductCard from "@/components/ProductCard";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, CircleX } from "lucide-react";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+const SortOptions: { [key: string]: string } = {
+  "price-asc": "From cheapest",
+  "price-desc": "From most expensive",
+  "date-desc": "From latest",
+  "date-asc": "From oldest",
+};
 
 const ShoeTypes = [
   {
@@ -82,9 +91,12 @@ const ProductsPageContent = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+
   // State for selected filters
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [selectedSort, setSelectedSort] = useState<string>("");
 
   // Get all available type values (excluding "All Types")
   const allTypeValues = ShoeTypes.filter((t) => t.name !== "All Types").map(
@@ -100,6 +112,7 @@ const ProductsPageContent = () => {
   useEffect(() => {
     const typeParam = searchParams.get("type");
     const sizeParam = searchParams.get("size");
+    const sortParam = searchParams.get("sort");
 
     if (typeParam) {
       setSelectedTypes(typeParam.split(","));
@@ -111,6 +124,12 @@ const ProductsPageContent = () => {
       setSelectedSizes(sizeParam.split(","));
     } else {
       setSelectedSizes([]);
+    }
+
+    if (sortParam) {
+      setSelectedSort(sortParam);
+    } else {
+      setSelectedSort("");
     }
   }, [searchParams]);
 
@@ -160,6 +179,18 @@ const ProductsPageContent = () => {
     }
   };
 
+  // Handle sort selection
+  const handleSortClick = (sortValue: string) => {
+    setSelectedSort(sortValue);
+    setIsSortMenuOpen(false);
+  };
+
+  // Clear sort
+  const clearSort = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedSort("");
+  };
+
   // Update URL when filters change
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -178,11 +209,42 @@ const ProductsPageContent = () => {
       params.delete("size");
     }
 
+    // Handle sort
+    if (selectedSort) {
+      params.set("sort", selectedSort);
+    } else {
+      params.delete("sort");
+    }
+
     const queryString = params.toString();
     const url = queryString ? `${pathname}?${queryString}` : pathname;
     window.history.pushState({}, "", url);
-  }, [selectedTypes, selectedSizes, pathname, searchParams]);
+  }, [selectedTypes, selectedSizes, selectedSort, pathname, searchParams]);
 
+  const products = [
+    {
+      id: 1,
+      image: [
+        `${BASE_PATH}/product/mock-image-1.webp`,
+        `${BASE_PATH}/product/mock-image-2.webp`,
+      ],
+      name: "Product 1",
+      price: 100,
+      discount: 10,
+      sizes: ["40", "41", "42"],
+    },
+    {
+      id: 2,
+      image: [
+        `${BASE_PATH}/product/mock-image-2.webp`,
+        `${BASE_PATH}/product/mock-image-1.webp`,
+      ],
+      name: "Product 2",
+      price: 150,
+      discount: 0,
+      sizes: ["40", "41", "42"],
+    },
+  ];
   return (
     <div className="mt-[88px] w-screen p-8 pt-4">
       <header className="flex flex-col gap-2">
@@ -279,10 +341,23 @@ const ProductsPageContent = () => {
             </div>
 
             {/* The Sort + Filters */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="rounded-full">
-                Sort
-              </Button>
+            <div className="flex items-center gap-6">
+              <div className="flex gap-2 items-center">
+                <p>Sort Price</p>
+                <div className="flex rounded-full">
+                  <Button variant="ghost" size="icon-sm" className="rounded-full"><ArrowUp className="w-3 h-3" /></Button>
+                  <Button variant="ghost" size="icon-sm" className="rounded-full"><ArrowDown className="w-3 h-3" /></Button>
+                </div>
+              </div>
+              <div className="h-6 w-px bg-black"/>
+              <div className="flex gap-2 items-center">
+                <p>Sort Release</p>
+                <div className="flex rounded-full">
+                  <Button variant="ghost" size="icon-sm" className="rounded-full"><ArrowUp className="w-3 h-3" /></Button>
+                  <Button variant="ghost" size="icon-sm" className="rounded-full"><ArrowDown className="w-3 h-3" /></Button>
+                </div>
+              </div>
+              <div className="h-6 w-px bg-black"/>
               <FilterSheet />
             </div>
           </div>
@@ -326,13 +401,31 @@ const ProductsPageContent = () => {
           </div>
         </div>
       </header>
+
+      {/* The Products */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-3 mt-6">
+        {/* The Product Card */}
+        {products.map((product) => (
+          <ProductCard
+            key={product.name}
+            id={product.id}
+            image={product.image}
+            name={product.name}
+            price={product.price}
+            discount={product.discount}
+            sizes={product.sizes}
+          />
+        ))}
+      </div>
     </div>
   );
 };
 
 const ProductsPage = () => {
   return (
-    <Suspense fallback={<div className="mt-[88px] w-screen p-8 pt-4">Loading...</div>}>
+    <Suspense
+      fallback={<div className="mt-[88px] w-screen p-8 pt-4">Loading...</div>}
+    >
       <ProductsPageContent />
     </Suspense>
   );
