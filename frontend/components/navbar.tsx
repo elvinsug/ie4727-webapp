@@ -56,7 +56,7 @@ const Navbar = () => {
   }, [isSearchOpen]);
 
   return (
-    <div className="fixed top-3 inset-x-3">
+    <div className="fixed top-3 inset-x-3 z-50">
       <div className="grid grid-cols-2 md:grid-cols-3 h-16 px-3 md:px-6 w-full rounded-md bg-white/95 backdrop-blur-md relative">
         <div className="flex items-center gap-2">
           <Button

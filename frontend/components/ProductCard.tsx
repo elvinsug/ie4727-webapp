@@ -81,12 +81,12 @@ ProductCardProps) => {
         {isHovered && (
           <div className="flex px-3 items-center justify-between absolute inset-x-0 bottom-3 z-20">
             <div className="flex items-center gap-1">
-              {sizes.map((size) => (
+              {sizes.sort().map((size) => (
                 <Button
                   key={size}
                   variant={selectedSize === size ? "default" : "secondary"}
                   size="sm"
-                  className="rounded-full"
+                  className="rounded-full font-thin text-xs"
                   onClick={() => handleSizeClick(size)}
                 >
                   {size}
