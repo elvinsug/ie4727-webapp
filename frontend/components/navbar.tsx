@@ -9,8 +9,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import CartSheet from "./CartSheet";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 const CART_STORAGE_KEY = "cartItems";
 const CHECKOUT_SNAPSHOT_KEY = "cartCheckoutSnapshot";
 
@@ -33,7 +32,9 @@ const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [user, setUser] = useState<{ email: string; role?: string } | null>(null);
+  const [user, setUser] = useState<{ email: string; role?: string } | null>(
+    null
+  );
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -84,7 +85,8 @@ const Navbar = () => {
     };
   }, [syncUserFromStorage]);
 
-  const isLoggedIn = Boolean(user);
+  // const isLoggedIn = Boolean(user);
+  const isLoggedIn = true;
 
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current) {
@@ -205,6 +207,12 @@ const Navbar = () => {
 
           {isLoggedIn ? (
             <>
+              <Link href="/user">
+                <Button variant="ghost" size="icon-lg">
+                  <User />
+                </Button>
+              </Link>
+              <CartSheet />
               <Button variant="ghost" size="icon-lg">
                 <User />
               </Button>
