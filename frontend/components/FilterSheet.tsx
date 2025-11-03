@@ -79,6 +79,7 @@ const FilterSheet = () => {
 		const materialParam = searchParams.get("material");
 		const priceLowParam = searchParams.get("price_low");
 		const priceHighParam = searchParams.get("price_high");
+		const onSaleParam = searchParams.get("on_sale");
 
 		if (typeParam) {
 			setSelectedTypes(typeParam.split(","));
@@ -94,6 +95,13 @@ const FilterSheet = () => {
 			const high = priceHighParam ? parseInt(priceHighParam) : 500;
 			setPriceRange([low, high]);
 			setBufferPriceRange([low, high]);
+		}
+
+		if (onSaleParam) {
+			const normalized = onSaleParam.toLowerCase();
+			setOnSale(["1", "true", "yes", "on"].includes(normalized));
+		} else {
+			setOnSale(false);
 		}
 	}, [searchParams]);
 
@@ -170,6 +178,9 @@ const FilterSheet = () => {
 		}
 		if (selectedMaterials.length > 0) {
 			params.set("material", selectedMaterials.join(","));
+		}
+		if (onSale) {
+			params.set("on_sale", "1");
 		}
 		if (priceRange[0] > 0) {
 			params.set("price_low", priceRange[0].toString());
@@ -448,7 +459,7 @@ const FilterSheet = () => {
 							)}
 						</div>
 
-						{/* Material Section */}
+						{/* Material Section
 						<div className="border-b pb-4">
 							<button
 								onClick={() => toggleSection("material")}
@@ -486,7 +497,7 @@ const FilterSheet = () => {
 									))}
 								</div>
 							)}
-						</div>
+						</div> */}
 					</div>
 				</div>
 

@@ -51,6 +51,7 @@ $material = isset($_GET['material']) ? trim($_GET['material']) : '';
 $sizes = isset($_GET['sizes']) ? trim($_GET['sizes']) : '';
 $price_low = isset($_GET['price_low']) ? trim($_GET['price_low']) : '';
 $price_high = isset($_GET['price_high']) ? trim($_GET['price_high']) : '';
+$on_sale = isset($_GET['on_sale']) ? trim($_GET['on_sale']) : '';
 
 $allowedSex = ['male', 'female', 'unisex'];
 $allowedTypes = ['casual', 'arch', 'track_field', 'accessories'];
@@ -99,6 +100,14 @@ if (!empty($price_low) && !empty($price_high) && floatval($price_low) > floatval
     $temp = $price_low;
     $price_low = $price_high;
     $price_high = $temp;
+}
+
+$filterOnSale = false;
+if (!empty($on_sale)) {
+    $normalizedOnSale = strtolower($on_sale);
+    if (in_array($normalizedOnSale, ['1', 'true', 'yes', 'on'], true)) {
+        $filterOnSale = true;
+    }
 }
 
 $sort = isset($_GET['sort']) ? trim($_GET['sort']) : '';
@@ -170,6 +179,12 @@ try {
         $whereConditions[] = 'po.price <= :price_high';
         $params[':price_high'] = floatval($price_high);
     }
+
+    if ($filterOnSale) {
+        $whereConditions[] = 'po.discount_percentage > 0';
+    }
+
+    $whereConditions[] = 'po.stock > 0';
 
     $whereClause = '';
     if (!empty($whereConditions)) {
@@ -286,6 +301,7 @@ try {
                     po.updated_at
                 FROM product_options po
                 WHERE po.product_color_id IN ($placeholders)
+                  AND po.stock > 0
                 ORDER BY po.product_color_id, po.size
             ";
 

@@ -117,6 +117,7 @@ $materials = isset($_POST['materials']) ? trim($_POST['materials']) : null;
 $sex = isset($_POST['sex']) ? trim($_POST['sex']) : null;
 $type = isset($_POST['type']) ? trim($_POST['type']) : null;
 $colorsData = isset($_POST['colors_data']) ? $_POST['colors_data'] : null;
+$warnings = [];
 
 // Validate enum values if provided
 if ($sex !== null) {
@@ -372,6 +373,30 @@ try {
             // Delete options that were not in the update
             foreach ($existingOptionsMap as $existingOptionId => $existingOption) {
                 if (!in_array($existingOptionId, $processedOptionIds)) {
+                    $optionDependencySql = "
+                        SELECT COUNT(*) as total
+                        FROM transactions
+                        WHERE product_option_id = :option_id
+                    ";
+                    $optionDependencyStmt = $pdo->prepare($optionDependencySql);
+                    $optionDependencyStmt->execute([':option_id' => $existingOptionId]);
+                    $optionDependencyCount = (int)($optionDependencyStmt->fetch()['total'] ?? 0);
+
+                    if ($optionDependencyCount > 0) {
+                        $processedOptionIds[] = $existingOptionId;
+
+                        $softDeleteOptionSql = "
+                            UPDATE product_options
+                            SET stock = 0, updated_at = NOW()
+                            WHERE id = :id
+                        ";
+                        $softDeleteOptionStmt = $pdo->prepare($softDeleteOptionSql);
+                        $softDeleteOptionStmt->execute([':id' => $existingOptionId]);
+
+                        $warnings[] = "Size {$existingOption['size']} for color {$color} has linked transactions. Stock has been set to 0 instead of deleting.";
+                        continue;
+                    }
+
                     $deleteOptionSql = "DELETE FROM product_options WHERE id = :id";
                     $deleteOptionStmt = $pdo->prepare($deleteOptionSql);
                     $deleteOptionStmt->execute([':id' => $existingOptionId]);
@@ -382,6 +407,29 @@ try {
         // Delete colors that were not in the update
         foreach ($existingColorsMap as $existingColorId => $existingColor) {
             if (!in_array($existingColorId, $processedColorIds)) {
+                $colorDependencySql = "
+                    SELECT COUNT(*) as total
+                    FROM transactions t
+                    INNER JOIN product_options po ON t.product_option_id = po.id
+                    WHERE po.product_color_id = :color_id
+                ";
+                $colorDependencyStmt = $pdo->prepare($colorDependencySql);
+                $colorDependencyStmt->execute([':color_id' => $existingColorId]);
+                $colorDependencyCount = (int)($colorDependencyStmt->fetch()['total'] ?? 0);
+
+                if ($colorDependencyCount > 0) {
+                    $softDeleteColorOptionsSql = "
+                        UPDATE product_options
+                        SET stock = 0, updated_at = NOW()
+                        WHERE product_color_id = :color_id
+                    ";
+                    $softDeleteColorOptionsStmt = $pdo->prepare($softDeleteColorOptionsSql);
+                    $softDeleteColorOptionsStmt->execute([':color_id' => $existingColorId]);
+
+                    $warnings[] = "Color {$existingColor['color']} has linked transactions. Stock for all its sizes has been set to 0 instead of deleting.";
+                    continue;
+                }
+
                 // Delete associated images
                 deleteImageFile($existingColor['image_url']);
                 deleteImageFile($existingColor['image_url_2']);
@@ -403,7 +451,7 @@ try {
                         po.id as option_id, po.size, po.price, po.discount_percentage, po.stock
                  FROM products p
                  LEFT JOIN product_colors pc ON p.id = pc.product_id
-                 LEFT JOIN product_options po ON pc.id = po.product_color_id
+                 LEFT JOIN product_options po ON pc.id = po.product_color_id AND po.stock > 0
                  WHERE p.id = :id
                  ORDER BY pc.id, po.id";
 
@@ -461,7 +509,8 @@ try {
     echo json_encode([
         'success' => true,
         'message' => 'Product updated successfully',
-        'data' => $product
+        'data' => $product,
+        'warnings' => $warnings
     ]);
 
 } catch (Exception $e) {
@@ -470,7 +519,12 @@ try {
         $pdo->rollBack();
     }
 
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    if ($e->getCode() === 409) {
+        http_response_code(409);
+        echo json_encode(['error' => $e->getMessage()]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['error' => $e->getMessage()]);
+    }
     error_log("Update product error: " . $e->getMessage());
 }

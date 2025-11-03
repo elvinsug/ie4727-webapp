@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   ChevronRight,
@@ -14,10 +14,14 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import ProductCard from "@/components/ProductCard";
+import { useSearchParams } from "next/navigation";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
+
+const CART_STORAGE_KEY = "cartItems";
+const CHECKOUT_SNAPSHOT_KEY = "cartCheckoutSnapshot";
 
 type ProductOption = {
   id: number;
@@ -45,11 +49,9 @@ type Product = {
   colors: ProductColor[];
 };
 
-export default function ProductDetailsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+const ProductDetailsContent = () => {
+  const searchParams = useSearchParams();
+  const productId = searchParams.get("id");
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,12 +65,21 @@ export default function ProductDetailsPage({
     const controller = new AbortController();
 
     const fetchProduct = async () => {
+      if (!productId) {
+        if (isMounted) {
+          setError("Product ID is required");
+          setProduct(null);
+          setIsLoading(false);
+        }
+        return;
+      }
+
       try {
         setIsLoading(true);
         setError(null);
 
         const response = await fetch(
-          `${API_URL}/get_product.php?id=${encodeURIComponent(params.id)}`,
+          `${API_URL}/get_product.php?id=${encodeURIComponent(productId)}`,
           {
             method: "GET",
             credentials: "include",
@@ -129,7 +140,7 @@ export default function ProductDetailsPage({
       isMounted = false;
       controller.abort();
     };
-  }, [params.id]);
+  }, [productId]);
 
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);
@@ -140,8 +151,7 @@ export default function ProductDetailsPage({
       return;
     }
 
-    const activeColorId =
-      selectedColorId ?? product.colors[0]?.id ?? null;
+    const activeColorId = selectedColorId ?? product.colors[0]?.id ?? null;
     const selectedColor =
       product.colors.find((color) => color.id === activeColorId) ??
       product.colors[0];
@@ -161,15 +171,103 @@ export default function ProductDetailsPage({
       alert(`Only ${selectedOption.stock} items available`);
       return;
     }
-    alert(`Added ${quantity} item(s) to cart`);
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const normalizedStock = Number(selectedOption.stock);
+    const maxStock =
+      Number.isFinite(normalizedStock) && normalizedStock > 0
+        ? normalizedStock
+        : Number.MAX_SAFE_INTEGER;
+    const clampedQuantity = Math.max(1, Math.min(quantity, maxStock));
+
+    const cartItem = {
+      id: `${product.id}-${selectedColor.id}-${selectedOption.id}`,
+      productId: product.id,
+      productOptionId: selectedOption.id,
+      productName: product.name,
+      color: selectedColor?.color ?? "",
+      size: selectedOption.size,
+      price: selectedOption.price,
+      discountPercentage: selectedOption.discount_percentage ?? 0,
+      imageUrl:
+        selectedColor?.image_url || `${BASE_PATH}/product/mock-image-1.webp`,
+      quantity: clampedQuantity,
+      stock: maxStock,
+    };
+
+    try {
+      const rawCart = window.localStorage.getItem(CART_STORAGE_KEY);
+      let existing: any[] = [];
+
+      if (rawCart) {
+        try {
+          const parsed = JSON.parse(rawCart);
+          if (Array.isArray(parsed)) {
+            existing = parsed;
+          }
+        } catch (parseError) {
+          console.error("Failed to parse existing cart", parseError);
+        }
+      }
+
+      let found = false;
+      const updatedCart = existing
+        .map((item) => {
+          if (
+            item &&
+            typeof item === "object" &&
+            item.productOptionId === cartItem.productOptionId
+          ) {
+            found = true;
+            const previousQuantity = Number(item.quantity ?? 0);
+            const nextQuantity = Math.min(
+              previousQuantity + cartItem.quantity,
+              cartItem.stock ?? Number.MAX_SAFE_INTEGER
+            );
+
+            return {
+              ...item,
+              quantity: nextQuantity,
+              price: cartItem.price,
+              discountPercentage: cartItem.discountPercentage,
+              imageUrl: cartItem.imageUrl,
+              color: cartItem.color,
+              productName: cartItem.productName,
+              size: cartItem.size,
+            };
+          }
+
+          return item;
+        })
+        .filter(Boolean);
+
+      if (!found) {
+        updatedCart.push(cartItem);
+      }
+
+      window.localStorage.setItem(
+        CART_STORAGE_KEY,
+        JSON.stringify(updatedCart)
+      );
+      window.localStorage.removeItem(CHECKOUT_SNAPSHOT_KEY);
+      window.dispatchEvent(new Event("cartChange"));
+
+      alert(
+        `Added ${clampedQuantity} item(s) of ${product.name} ` +
+          `(Color: ${cartItem.color || "Default"}, Size: ${cartItem.size}) to cart`
+      );
+      setQuantity(1);
+    } catch (storageError) {
+      console.error("Failed to update cart", storageError);
+      alert("Unable to add item to cart at this time.");
+    }
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <p className="text-gray-600">Loading product details...</p>
-      </div>
-    );
+    return <LoadingFallback />;
   }
 
   if (error || !product || product.colors.length === 0) {
@@ -449,5 +547,21 @@ export default function ProductDetailsPage({
         </div>
       </div>
     </div>
+  );
+};
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <p className="text-gray-600">Loading product details...</p>
+    </div>
+  );
+}
+
+export default function ProductDetailsPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ProductDetailsContent />
+    </Suspense>
   );
 }

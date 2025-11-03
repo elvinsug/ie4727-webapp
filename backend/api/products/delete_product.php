@@ -81,46 +81,25 @@ try {
         exit();
     }
 
-    // Fetch all images associated with this product before deletion
-    $imagesSql = "SELECT image_url, image_url_2 FROM product_colors WHERE product_id = :id";
-    $imagesStmt = $pdo->prepare($imagesSql);
-    $imagesStmt->execute([':id' => $productId]);
-    $images = $imagesStmt->fetchAll();
-
-    // Begin transaction
     $pdo->beginTransaction();
 
-    // Delete the product (CASCADE will handle product_colors and product_options)
-    $deleteProductSql = "DELETE FROM products WHERE id = :id";
-    $deleteProductStmt = $pdo->prepare($deleteProductSql);
-    $deleteProductStmt->execute([':id' => $productId]);
+    // Set all stock values to zero for the product
+    $updateStockSql = "
+        UPDATE product_options
+        SET stock = 0
+        WHERE product_color_id IN (
+            SELECT id FROM product_colors WHERE product_id = :product_id
+        )
+    ";
+    $updateStockStmt = $pdo->prepare($updateStockSql);
+    $updateStockStmt->execute([':product_id' => $productId]);
 
-    // Commit transaction
     $pdo->commit();
-
-    // Delete image files from filesystem (after successful database deletion)
-    $uploadDir = __DIR__ . '/../../uploads/products/';
-    foreach ($images as $imageRow) {
-        if (!empty($imageRow['image_url'])) {
-            $filename = basename($imageRow['image_url']);
-            $filepath = $uploadDir . $filename;
-            if (file_exists($filepath)) {
-                @unlink($filepath);
-            }
-        }
-        if (!empty($imageRow['image_url_2'])) {
-            $filename = basename($imageRow['image_url_2']);
-            $filepath = $uploadDir . $filename;
-            if (file_exists($filepath)) {
-                @unlink($filepath);
-            }
-        }
-    }
 
     http_response_code(200);
     echo json_encode([
         'success' => true,
-        'message' => 'Product deleted successfully',
+        'message' => 'Product stock set to zero successfully',
         'data' => [
             'id' => $productId,
             'name' => $product['name']

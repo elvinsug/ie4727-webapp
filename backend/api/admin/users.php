@@ -57,19 +57,67 @@ switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
         // Get all users (without password hashes)
         try {
-            $stmt = $pdo->prepare("
-                SELECT id, email, role, created_at, updated_at
-                FROM users
-                ORDER BY created_at DESC
-            ");
-            $stmt->execute();
+            $roleFilterRaw = isset($_GET['role']) ? strtolower(trim((string) $_GET['role'])) : null;
+            $searchRaw = isset($_GET['search']) ? trim((string) $_GET['search']) : null;
+
+            $conditions = [];
+            $params = [];
+
+            if ($roleFilterRaw && in_array($roleFilterRaw, ['user', 'admin'], true)) {
+                $conditions[] = 'u.role = :role';
+                $params[':role'] = $roleFilterRaw;
+            }
+
+            if ($searchRaw !== null && $searchRaw !== '') {
+                $conditions[] = '(u.email LIKE :search)';
+                $params[':search'] = '%' . $searchRaw . '%';
+            }
+
+            $whereClause = '';
+            if (!empty($conditions)) {
+                $whereClause = 'WHERE ' . implode(' AND ', $conditions);
+            }
+
+            $sql = "
+                SELECT
+                    u.id,
+                    u.email,
+                    u.role,
+                    u.created_at,
+                    u.updated_at,
+                    COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.total_amount ELSE 0 END), 0) AS total_spent,
+                    COALESCE(COUNT(CASE WHEN t.status = 'completed' THEN t.id END), 0) AS completed_orders,
+                    MIN(CASE WHEN t.status = 'completed' THEN t.transaction_date END) AS first_purchase_at
+                FROM users u
+                LEFT JOIN transactions t ON t.user_id = u.id
+                $whereClause
+                GROUP BY u.id, u.email, u.role, u.created_at, u.updated_at
+                ORDER BY u.created_at DESC
+            ";
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
             $users = $stmt->fetchAll();
+
+            // Normalize numeric values
+            $normalizedUsers = array_map(function ($user) {
+                return [
+                    'id' => (int) $user['id'],
+                    'email' => $user['email'],
+                    'role' => $user['role'],
+                    'created_at' => $user['created_at'],
+                    'updated_at' => $user['updated_at'],
+                    'total_spent' => (float) $user['total_spent'],
+                    'completed_orders' => (int) $user['completed_orders'],
+                    'first_purchase_at' => $user['first_purchase_at'],
+                ];
+            }, $users);
 
             http_response_code(200);
             echo json_encode([
                 'success' => true,
-                'users' => $users,
-                'count' => count($users)
+                'users' => $normalizedUsers,
+                'count' => count($normalizedUsers),
             ]);
         } catch (PDOException $e) {
             http_response_code(500);

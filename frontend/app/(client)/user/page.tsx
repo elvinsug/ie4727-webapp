@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Calendar as CalendarIcon, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,119 +22,161 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
+import Image from "next/image";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
-// Mock transaction data for user
-const mockTransactions = [
-  {
-    id: "TXN001",
-    productName: "BRIDGE AUBERGINE",
-    productImage: `${BASE_PATH}/product/mock-image-1.webp`,
-    quantity: 1,
-    price: 160.0,
-    purchasedAt: new Date(2025, 10, 15),
-  },
-  {
-    id: "TXN002",
-    productName: "RUNNER BLUE",
-    productImage: `${BASE_PATH}/product/mock-image-2.webp`,
-    quantity: 2,
-    price: 150.0,
-    purchasedAt: new Date(2025, 10, 14),
-  },
-  {
-    id: "TXN003",
-    productName: "CLASSIC WHITE",
-    productImage: `${BASE_PATH}/product/mock-image-1.webp`,
-    quantity: 1,
-    price: 140.0,
-    purchasedAt: new Date(2025, 10, 12),
-  },
-  {
-    id: "TXN004",
-    productName: "URBAN BLACK",
-    productImage: `${BASE_PATH}/product/mock-image-2.webp`,
-    quantity: 1,
-    price: 170.0,
-    purchasedAt: new Date(2025, 10, 10),
-  },
-  {
-    id: "TXN005",
-    productName: "SPORT GREY",
-    productImage: `${BASE_PATH}/product/mock-image-1.webp`,
-    quantity: 3,
-    price: 155.0,
-    purchasedAt: new Date(2025, 10, 8),
-  },
-  {
-    id: "TXN006",
-    productName: "BRIDGE AUBERGINE",
-    productImage: `${BASE_PATH}/product/mock-image-2.webp`,
-    quantity: 1,
-    price: 160.0,
-    purchasedAt: new Date(2025, 9, 28),
-  },
-  {
-    id: "TXN007",
-    productName: "RUNNER BLUE",
-    productImage: `${BASE_PATH}/product/mock-image-1.webp`,
-    quantity: 2,
-    price: 150.0,
-    purchasedAt: new Date(2025, 9, 25),
-  },
-  {
-    id: "TXN008",
-    productName: "CLASSIC WHITE",
-    productImage: `${BASE_PATH}/product/mock-image-2.webp`,
-    quantity: 1,
-    price: 140.0,
-    purchasedAt: new Date(2025, 9, 20),
-  },
-  {
-    id: "TXN009",
-    productName: "URBAN BLACK",
-    productImage: `${BASE_PATH}/product/mock-image-1.webp`,
-    quantity: 1,
-    price: 170.0,
-    purchasedAt: new Date(2025, 9, 15),
-  },
-  {
-    id: "TXN010",
-    productName: "SPORT GREY",
-    productImage: `${BASE_PATH}/product/mock-image-2.webp`,
-    quantity: 2,
-    price: 155.0,
-    purchasedAt: new Date(2025, 9, 10),
-  },
-];
+type Transaction = {
+  id: number;
+  productName: string;
+  productImage: string | null;
+  quantity: number;
+  price: number;
+  purchasedAt: Date | null;
+  status: string;
+  paymentMethod: string | null;
+};
 
 const UserPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isDateDialogOpen, setIsDateDialogOpen] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Filter transactions based on search and date range
-  const filteredTransactions = mockTransactions.filter((transaction) => {
-    const matchesSearch = transaction.productName
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
+  const fetchTransactions = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-    const matchesDateRange =
-      !dateRange ||
-      !dateRange.from ||
-      (transaction.purchasedAt >= dateRange.from &&
-        (!dateRange.to || transaction.purchasedAt <= dateRange.to));
+      const params = new URLSearchParams();
 
-    return matchesSearch && matchesDateRange;
-  });
+      if (searchQuery.trim()) {
+        params.set("search", searchQuery.trim());
+      }
 
-  // Clear date range
+      if (dateRange?.from) {
+        params.set("start_date", dateRange.from.toISOString());
+      }
+
+      if (dateRange?.to) {
+        params.set("end_date", dateRange.to.toISOString());
+      }
+
+      const response = await fetch(
+        `${API_URL}/transactions/get_user_transactions.php?${params.toString()}`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to fetch transactions");
+      }
+
+      const mapped: Transaction[] = (data.transactions || []).map(
+        (transaction: any) => {
+          const image =
+            transaction.product?.images?.[0] ??
+            `${BASE_PATH}/product/mock-image-1.webp`;
+
+          const dateValue = transaction.transaction_date
+            ? new Date(transaction.transaction_date)
+            : null;
+
+          return {
+            id: transaction.id,
+            productName: transaction.product?.name ?? "Unknown product",
+            productImage: image,
+            quantity: Number(transaction.quantity ?? 0),
+            price: Number(transaction.price_paid ?? 0),
+            purchasedAt:
+              dateValue && !isNaN(dateValue.getTime()) ? dateValue : null,
+            status: transaction.status ?? "completed",
+            paymentMethod: transaction.payment_method ?? null,
+          };
+        }
+      );
+
+      setTransactions(mapped);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch transactions");
+      setTransactions([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dateRange, searchQuery]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
+  const filteredTransactions = useMemo(() => {
+    const loweredQuery = searchQuery.toLowerCase().trim();
+    const hasDateFilter = Boolean(dateRange?.from);
+
+    const startDate = dateRange?.from
+      ? new Date(
+          dateRange.from.getFullYear(),
+          dateRange.from.getMonth(),
+          dateRange.from.getDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      : null;
+
+    const endDate = dateRange?.to
+      ? new Date(
+          dateRange.to.getFullYear(),
+          dateRange.to.getMonth(),
+          dateRange.to.getDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      : startDate;
+
+    const startTime = startDate ? startDate.getTime() : null;
+    const endTime = endDate ? endDate.getTime() : null;
+
+    return transactions.filter((transaction) => {
+      const matchesSearch =
+        !loweredQuery ||
+        transaction.productName.toLowerCase().includes(loweredQuery);
+
+      if (!matchesSearch) {
+        return false;
+      }
+
+      if (!hasDateFilter) {
+        return true;
+      }
+
+      if (!transaction.purchasedAt) {
+        return false;
+      }
+
+      const purchaseTime = transaction.purchasedAt.getTime();
+      const afterStart = startTime !== null ? purchaseTime >= startTime : true;
+      const beforeEnd = endTime !== null ? purchaseTime <= endTime : true;
+
+      return afterStart && beforeEnd;
+    });
+  }, [transactions, searchQuery, dateRange]);
+
   const handleClearDateRange = () => {
     setDateRange(undefined);
   };
 
-  // Format date range for display
   const getDateRangeText = () => {
     if (!dateRange || !dateRange.from) return "Select Date Range";
     if (!dateRange.to) return format(dateRange.from, "MMM dd, yyyy");
@@ -144,8 +186,7 @@ const UserPage = () => {
     )}`;
   };
 
-  // Handle cancel/return order
-  const handleCancelReturn = (transactionId: string) => {
+  const handleCancelReturn = (transactionId: number) => {
     // TODO: Implement cancel/return logic
     if (confirm("Are you sure you want to cancel/return this order?")) {
       console.log("Canceling/Returning order:", transactionId);
@@ -191,139 +232,132 @@ const UserPage = () => {
               showCloseButton={false}
               className="max-w-[400px] p-0 flex flex-col"
             >
-              {/* Header */}
               <DialogHeader className="p-4 border-b flex items-center justify-between">
                 <DialogTitle className="text-xl font-display font-bold">
                   Select Date Range
                 </DialogTitle>
                 <DialogClose asChild>
-                  <Button
-                    variant="outline"
-                    size="icon-lg"
-                    className="rounded-full"
-                  >
-                    <X />
+                  <Button variant="ghost" size="icon">
+                    <X className="w-5 h-5" />
                   </Button>
                 </DialogClose>
               </DialogHeader>
 
-              {/* Calendar */}
-              <div className="p-4 flex items-center justify-center">
-                <Calendar
-                  mode="range"
-                  selected={dateRange}
-                  onSelect={setDateRange}
-                  numberOfMonths={2}
-                  className="rounded-md"
-                />
-              </div>
+              <Calendar
+                initialFocus
+                mode="range"
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={1}
+                className="mx-auto my-4"
+              />
 
-              {/* Footer */}
-              <div className="p-4 border-t bg-neutral-50 rounded-b-md flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={handleClearDateRange}
-                >
+              <div className="flex justify-end gap-2 px-4 py-3 border-t">
+                <Button variant="ghost" onClick={handleClearDateRange}>
                   Clear
                 </Button>
-                <Button
-                  size="lg"
-                  onClick={() => setIsDateDialogOpen(false)}
-                >
-                  Apply
-                </Button>
+                <DialogClose asChild>
+                  <Button onClick={fetchTransactions}>Apply</Button>
+                </DialogClose>
               </div>
             </DialogContent>
           </Dialog>
         </div>
 
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        )}
+
         {/* Transactions Table */}
-        <div className="flex-1 flex flex-col bg-white rounded-md overflow-hidden min-h-0">
-          {/* Table Header */}
-          <div className="shrink-0 border-b">
-            <Table className="table-fixed">
-              <TableHeader>
+        <div className="flex-1 bg-white border rounded-lg overflow-hidden">
+          {isLoading && transactions.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 text-sm">
+              Loading transactions...
+            </div>
+          ) : filteredTransactions.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 text-sm">
+              No transactions found.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader className="bg-neutral-50">
                 <TableRow>
-                  <TableHead className="w-[300px] h-12 px-4">Product</TableHead>
-                  <TableHead className="w-[100px]">Quantity</TableHead>
-                  <TableHead className="w-[140px]">Price</TableHead>
-                  <TableHead className="w-[180px]">Purchased At</TableHead>
-                  <TableHead className="w-[180px]">Action</TableHead>
+                  <TableHead>Transaction ID</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
-            </Table>
-          </div>
-
-          {/* Scrollable Table Body */}
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <Table className="table-fixed">
               <TableBody>
-                {filteredTransactions.length > 0 ? (
-                  filteredTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="w-[300px] px-4">
-                        <div className="flex gap-4 items-center py-1">
+                {filteredTransactions.map((transaction) => (
+                  <TableRow key={transaction.id}>
+                    <TableCell className="font-medium">
+                      {`TXN${String(transaction.id).padStart(6, "0")}`}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="relative h-16 w-16 rounded-md overflow-hidden bg-neutral-100">
                           {transaction.productImage ? (
-                            <img
+                            <Image
                               src={transaction.productImage}
                               alt={transaction.productName}
-                              className="aspect-square w-16 rounded-sm object-cover bg-neutral-200"
+                              fill
+                              className="object-cover"
                             />
                           ) : (
-                            <div className="aspect-square w-16 rounded-sm bg-neutral-300" />
+                            <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
+                              No Image
+                            </div>
                           )}
-                          <div className="flex-1 min-w-0">
-                            <h1 className="text-base font-medium truncate">
-                              {transaction.productName}
-                            </h1>
-                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="w-[100px]">
-                        <span className="text-sm font-medium">
-                          {transaction.quantity}
-                        </span>
-                      </TableCell>
-                      <TableCell className="w-[140px]">
-                        <span className="text-base font-display font-bold">
-                          S$
-                          {transaction.price.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </span>
-                      </TableCell>
-                      <TableCell className="w-[180px]">
-                        <span className="text-sm text-muted-foreground">
-                          {format(transaction.purchasedAt, "MMM dd, yyyy")}
-                        </span>
-                      </TableCell>
-                      <TableCell className="w-[180px]">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCancelReturn(transaction.id)}
-                          className="text-sm"
-                        >
-                          Cancel/Return Order
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="h-32 text-center text-muted-foreground"
-                    >
-                      No transactions found
+                        <div>
+                          <p className="font-semibold">{transaction.productName}</p>
+                          {transaction.paymentMethod && (
+                            <p className="text-xs text-gray-500 capitalize">
+                              {transaction.paymentMethod}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{transaction.quantity}</TableCell>
+                    <TableCell>
+                      S${transaction.price.toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      {transaction.purchasedAt ? (
+                        <div className="flex flex-col">
+                          <span>{format(transaction.purchasedAt, "MMM d, yyyy")}</span>
+                          <span className="text-xs text-gray-500">
+                            {format(transaction.purchasedAt, "h:mm a")}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">N/A</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="capitalize">
+                      {transaction.status}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCancelReturn(transaction.id)}
+                      >
+                        Cancel / Return
+                      </Button>
                     </TableCell>
                   </TableRow>
-                )}
+                ))}
               </TableBody>
             </Table>
-          </div>
+          )}
         </div>
       </div>
     </div>

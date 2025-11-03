@@ -1,9 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Button } from "./ui/button";
 import { ShoppingBag } from "lucide-react";
+
+type ProductOption = {
+  id: number;
+  size: string;
+  price: number;
+  discount_percentage?: number;
+  stock?: number;
+};
 
 interface ProductCardProps {
   id: number;
@@ -12,13 +20,9 @@ interface ProductCardProps {
   name: string;
   price: number;
   discount: number;
-  sizes: string[];
-  //   type: string;
-  //   size: string;
-  //   material: string;
-  //   sex: string;
-  //   isNew: boolean;
-  //   isSale: boolean;
+  sizes?: string[];
+  options?: ProductOption[];
+  color?: string;
 }
 
 const ProductCard = ({
@@ -28,14 +32,10 @@ const ProductCard = ({
   name,
   price,
   discount,
-  sizes,
-}: //   type,
-//   size,
-//   material,
-//   sex,
-//   isNew,
-//   isSale,
-ProductCardProps) => {
+  options = [],
+  color,
+  sizes = [],
+}: ProductCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
 
@@ -43,18 +43,128 @@ ProductCardProps) => {
     setSelectedSize(size);
   };
 
-  const handleAddToCart = () => {
+  const availableOptions = useMemo(() => {
+    if (options.length > 0) {
+      return options;
+    }
+
+    return sizes.map((size) => ({
+      id: Number(`${id}-${size}`.replace(/[^0-9]/g, "")) || id,
+      size,
+      price,
+      discount_percentage: discount,
+      stock: Number.MAX_SAFE_INTEGER,
+    }));
+  }, [options, sizes, id, price, discount]);
+
+  const selectedOption = useMemo(() => {
+    if (!selectedSize) {
+      return null;
+    }
+
+    return availableOptions.find(
+      (option) => option.size === selectedSize
+    ) ?? null;
+  }, [availableOptions, selectedSize]);
+
+  const handleAddToCart = useCallback(() => {
     if (!selectedSize) {
       alert("Please select a size first");
       return;
     }
 
-    // TODO: Add to cart logic
-    console.log(
-      `Adding to cart: ${name}, Size: ${selectedSize}, Price: ${price}`
-    );
-    alert(`Added ${name} (Size: ${selectedSize}) to cart!`);
-  };
+    if (!selectedOption) {
+      alert("This size is currently unavailable");
+      return;
+    }
+
+    if (selectedOption.stock !== undefined && selectedOption.stock <= 0) {
+      alert("This size is out of stock");
+      return;
+    }
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const CART_STORAGE_KEY = "cartItems";
+    const CHECKOUT_SNAPSHOT_KEY = "cartCheckoutSnapshot";
+
+    const cartItem = {
+      id: `${id}-${selectedOption.id}`,
+      productId: id,
+      productOptionId: selectedOption.id,
+      productName: name,
+      color: color ?? "",
+      size: selectedOption.size,
+      price: selectedOption.price ?? price,
+      discountPercentage: selectedOption.discount_percentage ?? discount ?? 0,
+      imageUrl: image,
+      quantity: 1,
+      stock:
+        selectedOption.stock && selectedOption.stock > 0
+          ? selectedOption.stock
+          : Number.MAX_SAFE_INTEGER,
+    };
+
+    try {
+      const rawCart = window.localStorage.getItem(CART_STORAGE_KEY);
+      let existing: any[] = [];
+
+      if (rawCart) {
+        try {
+          const parsed = JSON.parse(rawCart);
+          if (Array.isArray(parsed)) {
+            existing = parsed;
+          }
+        } catch (parseError) {
+          console.error("Failed to parse existing cart", parseError);
+        }
+      }
+
+      let found = false;
+      const updatedCart = existing
+        .map((item) => {
+          if (
+            item &&
+            typeof item === "object" &&
+            item.productOptionId === cartItem.productOptionId
+          ) {
+            found = true;
+            const previousQuantity = Number(item.quantity ?? 0);
+            const maxStock = cartItem.stock ?? Number.MAX_SAFE_INTEGER;
+            const nextQuantity = Math.min(previousQuantity + 1, maxStock);
+            return {
+              ...item,
+              quantity: nextQuantity,
+              price: cartItem.price,
+              discountPercentage: cartItem.discountPercentage,
+              imageUrl: cartItem.imageUrl,
+            };
+          }
+
+          return item;
+        })
+        .filter(Boolean);
+
+      if (!found) {
+        updatedCart.push(cartItem);
+      }
+
+      window.localStorage.setItem(
+        CART_STORAGE_KEY,
+        JSON.stringify(updatedCart)
+      );
+      window.localStorage.removeItem(CHECKOUT_SNAPSHOT_KEY);
+      window.dispatchEvent(new Event("cartChange"));
+
+      alert(`Added ${name} (Size: ${selectedOption.size}) to cart!`);
+      setSelectedSize(null);
+    } catch (storageError) {
+      console.error("Failed to update cart", storageError);
+      alert("Unable to add item to cart at this time.");
+    }
+  }, [selectedOption, selectedSize, id, name, color, image, price, discount]);
 
   return (
     <div
@@ -83,15 +193,17 @@ ProductCardProps) => {
         {isHovered && (
           <div className="flex px-3 items-center justify-between absolute inset-x-0 bottom-3 z-20">
             <div className="flex items-center gap-1">
-              {sizes.sort().map((size) => (
+              {availableOptions.map((option) => (
                 <Button
-                  key={size}
-                  variant={selectedSize === size ? "default" : "secondary"}
+                  key={option.id}
+                  variant={
+                    selectedSize === option.size ? "default" : "secondary"
+                  }
                   size="sm"
                   className="rounded-full font-thin text-xs"
-                  onClick={() => handleSizeClick(size)}
+                  onClick={() => handleSizeClick(option.size)}
                 >
-                  {size}
+                  {option.size}
                 </Button>
               ))}
             </div>

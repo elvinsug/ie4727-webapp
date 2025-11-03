@@ -153,6 +153,7 @@ try {
                 po.updated_at
             FROM product_options po
             WHERE po.product_color_id IN ($colorPlaceholders)
+              AND po.stock > 0
             ORDER BY po.product_color_id, po.size
         ";
 
@@ -193,9 +194,8 @@ try {
         foreach ($productColors as $color) {
             $colorOptions = $color['options'] ?? [];
 
-            // Log warning if color has no options
             if (empty($colorOptions)) {
-                error_log("Warning: Product {$product['id']} color {$color['id']} ({$color['color']}) has no options");
+                continue;
             }
 
             $cleanColors[] = [
@@ -205,6 +205,10 @@ try {
                 'image_url_2' => $color['image_url_2'],
                 'options' => $colorOptions
             ];
+        }
+
+        if (empty($cleanColors)) {
+            continue;
         }
 
         $result[] = [

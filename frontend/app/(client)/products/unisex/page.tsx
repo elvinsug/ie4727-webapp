@@ -162,6 +162,14 @@ const UnisexProductsPageContent = () => {
 				params.set("price_high", price_high);
 			}
 
+			const onSale = searchParams.get("on_sale");
+			if (
+				onSale &&
+				!["0", "false", "off"].includes(onSale.toLowerCase())
+			) {
+				params.set("on_sale", "1");
+			}
+
 			// Add sort parameter
 			const sort = searchParams.get("sort");
 			if (sort) {
@@ -175,7 +183,7 @@ const UnisexProductsPageContent = () => {
 			params.set("limit", limit);
 
 			const response = await fetch(
-				`${API_URL}/products/get_products_colors.php?${params.toString()}`
+				`${API_URL}/products/get_product_colors.php?${params.toString()}`
 			);
 
 			if (!response.ok) {
@@ -502,11 +510,12 @@ const UnisexProductsPageContent = () => {
 										key={`${product.product_id}-${product.color}-${index}`}
 										id={product.product_id}
 										name={`${product.product_name} - ${product.color}`}
-										sizes={product.options ? product.options.map((opt: any) => opt.size) : []}
 										price={product.price}
 										discount={product.discount_percentage}
 										image={product.image_url}
 										image2={product.image_url_2}
+										options={product.options}
+										color={product.color}
 									/>
 								))}
 							</div>

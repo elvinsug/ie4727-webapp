@@ -83,6 +83,7 @@ try {
             SELECT id, product_color_id, size, price, discount_percentage, stock, created_at, updated_at
             FROM product_options
             WHERE product_color_id IN ($placeholders)
+              AND stock > 0
             ORDER BY size ASC
         ");
         $optionsStmt->execute($colorIds);

@@ -1,48 +1,55 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import ProductCard from "@/components/ProductCard";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
-const discountItems = [
-  {
-    id: 1,
-    name: "Discount Item 1",
-    image: `${BASE_PATH}/product/mock-image-1.webp`,
-    image2: `${BASE_PATH}/product/mock-image-2.webp`,
-    price: 100,
-    discount: 10,
-    sizes: ["35", "36", "37", "38", "39", "40"],
-  },
-  {
-    id: 2,
-    name: "Discount Item 2",
-    image: `${BASE_PATH}/product/mock-image-1.webp`,
-    image2: `${BASE_PATH}/product/mock-image-2.webp`,
-    price: 100,
-    discount: 10,
-    sizes: ["35", "36", "37", "38", "39", "40"],
-  },
-  {
-    id: 3,
-    name: "Discount Item 1",
-    image: `${BASE_PATH}/product/mock-image-1.webp`,
-    image2: `${BASE_PATH}/product/mock-image-2.webp`,
-    price: 100,
-    discount: 10,
-    sizes: ["35", "36", "37", "38", "39", "40"],
-  },
-  {
-    id: 4,
-    name: "Discount Item 1",
-    image: `${BASE_PATH}/product/mock-image-1.webp`,
-    image2: `${BASE_PATH}/product/mock-image-2.webp`,
-    price: 100,
-    discount: 10,
-    sizes: ["35", "36", "37", "38", "39", "40"],
-  },
-];
+interface ProductOption {
+  id: number;
+  size: string;
+  price: number;
+  discount_percentage: number;
+  stock: number;
+}
+
+interface DiscountedProduct {
+  product_id: number;
+  product_name: string;
+  product_color_id: number;
+  color: string;
+  price: number;
+  discount_percentage: number;
+  image_url: string;
+  image_url_2: string;
+  total_stock: number;
+  options: ProductOption[];
+}
 
 export default function Home() {
+  const [discountedProducts, setDiscountedProducts] = useState<DiscountedProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDiscountedProducts = async () => {
+      try {
+        const response = await fetch(`${API_URL}/products/get_discounted.php?limit=3`);
+        const data = await response.json();
+
+        if (data.success && data.data) {
+          setDiscountedProducts(data.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch discounted products:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDiscountedProducts();
+  }, []);
   return (
     <div className="flex flex-col gap-6">
       {/* Hero Section*/}
@@ -74,20 +81,36 @@ export default function Home() {
       {/* Discount Item Carousel */}
       <section className="w-screen p-6 flex flex-col gap-6 mb-10">
         <h2 className="text-2xl font-bold font-display">Discount Items</h2>
-        <div className="grid grid-cols-4 gap-4">
-          {discountItems.map((item) => (
-            <ProductCard
-              key={item.id}
-              id={item.id}
-              name={item.name}
-              price={item.price}
-              discount={item.discount}
-              image={item.image}
-              image2={item.image2}
-              sizes={item.sizes}
-            />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-96 bg-gray-200 animate-pulse rounded-lg"
+              />
+            ))}
+          </div>
+        ) : discountedProducts.length > 0 ? (
+          <div className="grid grid-cols-3 gap-4">
+            {discountedProducts.map((item) => (
+              <ProductCard
+                key={item.product_color_id}
+                id={item.product_id}
+                name={`${item.product_name} - ${item.color}`}
+                price={item.price}
+                discount={item.discount_percentage}
+                image={item.image_url || `${BASE_PATH}/product/mock-image-1.webp`}
+                image2={item.image_url_2 || `${BASE_PATH}/product/mock-image-2.webp`}
+                options={item.options}
+                color={item.color}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No discounted items available at the moment.</p>
+          </div>
+        )}
       </section>
 
       {/* Banner */}

@@ -48,6 +48,14 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+const formatCurrency = (value: number) =>
+  currencyFormatter.format(Number.isFinite(value) ? value : 0);
+
 // Predefined colors
 const AVAILABLE_COLORS = [
   { name: "Black", hex: "#000000" },
@@ -65,6 +73,15 @@ const AVAILABLE_COLORS = [
   { name: "Gray", hex: "#CCCCCC" },
 ];
 
+type ProductType = "casual" | "arch" | "track_field" | "accessories";
+
+const PRODUCT_TYPES: Array<{ value: ProductType; label: string }> = [
+  { value: "casual", label: "Casual" },
+  { value: "arch", label: "Arch Support" },
+  { value: "track_field", label: "Track & Field" },
+  { value: "accessories", label: "Accessories" },
+];
+
 const AdminProducts = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,11 +89,15 @@ const AdminProducts = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  const [salesByColor, setSalesByColor] = useState<Record<number, number>>({});
+  const [salesByProduct, setSalesByProduct] =
+    useState<Record<number, number>>({});
 
   // Form state
   const [productName, setProductName] = useState("");
   const [material, setMaterial] = useState("");
   const [sex, setSex] = useState<"male" | "female" | "unisex" | "">("");
+  const [productType, setProductType] = useState<ProductType | "">("");
   const [description, setDescription] = useState("");
   const [colors, setColors] = useState<
     Array<{
@@ -109,18 +130,64 @@ const AdminProducts = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/products/get_products.php`, {
-        method: "GET",
-        credentials: "include",
-      });
+      const [productsResponse, salesResponse] = await Promise.all([
+        fetch(`${API_URL}/products/get_products.php`, {
+          method: "GET",
+          credentials: "include",
+        }),
+        fetch(`${API_URL}/transactions/sales_report.php?limit=1000`, {
+          method: "GET",
+          credentials: "include",
+        }),
+      ]);
 
-      if (!response.ok) {
+      let colorSales: Record<number, number> = {};
+      let productSales: Record<number, number> = {};
+
+      try {
+        const salesJson = await salesResponse.json();
+        if (
+          salesResponse.ok &&
+          salesJson?.success &&
+          Array.isArray(salesJson.data)
+        ) {
+          salesJson.data.forEach((item: any) => {
+            const colorId = Number(item.product_color_id);
+            const productId = Number(item.product_id);
+            const incomeRaw =
+              typeof item.total_income === "string"
+                ? parseFloat(item.total_income)
+                : Number(item.total_income ?? 0);
+            const income = Number.isFinite(incomeRaw) ? incomeRaw : 0;
+
+            if (Number.isFinite(colorId)) {
+              colorSales[colorId] = (colorSales[colorId] || 0) + income;
+            }
+            if (Number.isFinite(productId)) {
+              productSales[productId] = (productSales[productId] || 0) + income;
+            }
+          });
+        } else if (salesJson?.error) {
+          console.error("Sales report error:", salesJson.error);
+        } else if (!salesResponse.ok) {
+          console.error("Failed to fetch sales report");
+        }
+      } catch (salesError) {
+        console.error("Error parsing sales report:", salesError);
+      }
+
+      setSalesByColor(colorSales);
+      setSalesByProduct(productSales);
+
+      if (!productsResponse.ok) {
         throw new Error("Failed to fetch products");
       }
 
-      const data = await response.json();
+      const data = await productsResponse.json();
       if (data.success) {
         setProducts(data.data || []);
+      } else {
+        throw new Error(data.error || "Failed to fetch products");
       }
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -271,6 +338,7 @@ const AdminProducts = () => {
     setProductName("");
     setMaterial("");
     setSex("");
+    setProductType("");
     setDescription("");
     setColors([]);
     setIsDialogOpen(true);
@@ -285,6 +353,9 @@ const AdminProducts = () => {
     setProductName(product.name);
     setMaterial(product.materials || "");
     setSex(product.sex || "unisex");
+    const matchedType =
+      PRODUCT_TYPES.find((option) => option.value === product.type)?.value ?? "";
+    setProductType(matchedType);
     setDescription(product.description || "");
 
     // Convert API product data to color format
@@ -326,6 +397,7 @@ const AdminProducts = () => {
     setProductName("");
     setMaterial("");
     setSex("");
+    setProductType("");
     setDescription("");
     setColors([]);
     setIsDialogOpen(false);
@@ -347,6 +419,10 @@ const AdminProducts = () => {
         alert("Please select a sex category");
         return;
       }
+      if (!productType) {
+        alert("Please select a product type");
+        return;
+      }
       if (colors.length === 0) {
         alert("Please add at least one color variant");
         return;
@@ -358,7 +434,7 @@ const AdminProducts = () => {
       formData.append("description", description);
       formData.append("materials", material);
       formData.append("sex", sex);
-      formData.append("type", "casual"); // Default type
+      formData.append("type", productType);
 
       // Prepare colors data
       const colorsData = colors.map((color, index) => {
@@ -562,6 +638,26 @@ const AdminProducts = () => {
                     >
                       Unisex
                     </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {PRODUCT_TYPES.map((typeOption) => (
+                      <Button
+                        key={typeOption.value}
+                        type="button"
+                        variant={
+                          productType === typeOption.value ? "default" : "outline"
+                        }
+                        size="sm"
+                        className="rounded-full"
+                        onClick={() => setProductType(typeOption.value)}
+                      >
+                        {typeOption.label}
+                      </Button>
+                    ))}
                   </div>
                 </div>
 
@@ -848,6 +944,15 @@ const AdminProducts = () => {
 
                 // Get image for this color
                 const imageUrl = color?.image_url;
+                const colorId = color ? Number(color.id) : null;
+                const productIdNumeric = Number(product.id);
+                const productSalesTotal = Number.isFinite(productIdNumeric)
+                  ? salesByProduct[productIdNumeric] ?? 0
+                  : 0;
+                let salesAmount = productSalesTotal;
+                if (colorId !== null && Number.isFinite(colorId)) {
+                  salesAmount = salesByColor[colorId] ?? 0;
+                }
 
                 return (
                   <TableRow key={key}>
@@ -890,7 +995,7 @@ const AdminProducts = () => {
                       )}
                     </TableCell>
                     <TableCell className="w-[140px] font-display">
-                      $0.00
+                      {formatCurrency(salesAmount)}
                     </TableCell>
                     <TableCell className="w-[100px] font-display">
                       ${price.toFixed(2)}

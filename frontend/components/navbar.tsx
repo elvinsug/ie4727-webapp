@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Car, LogIn, LogOut, Menu, SearchIcon, ShoppingBag, User, XCircle } from "lucide-react";
+import { LogIn, LogOut, Menu, SearchIcon, User, XCircle } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import CartSheet from "./CartSheet";
 
@@ -85,8 +85,7 @@ const Navbar = () => {
     };
   }, [syncUserFromStorage]);
 
-  // const isLoggedIn = Boolean(user);
-  const isLoggedIn = true;
+  const isLoggedIn = Boolean(user);
 
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current) {
@@ -212,10 +211,6 @@ const Navbar = () => {
                   <User />
                 </Button>
               </Link>
-              <CartSheet />
-              <Button variant="ghost" size="icon-lg">
-                <User />
-              </Button>
               <CartSheet />
               <Button
                 variant="ghost"

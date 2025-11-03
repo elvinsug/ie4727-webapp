@@ -220,8 +220,8 @@ export default function RootLayout({
           <div className="h-screen w-full flex py-3 pl-3">
             <div className="flex-1 bg-white border border-black/10 shadow-md rounded-xl flex flex-col">
               <div className="flex flex-col flex-1 gap-6 p-4">
-                <a
-                  href="/admin"
+                <Link
+                  href="/miona"
                   className="w-full flex items-center justify-center p-2"
                 >
                   <Image
@@ -230,7 +230,7 @@ export default function RootLayout({
                     width={125.5}
                     height={24}
                   />
-                </a>
+                </Link>
 
                 <MenuList
                   icon={<Home className="w-5 h-5" />}
