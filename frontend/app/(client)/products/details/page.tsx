@@ -599,6 +599,7 @@ const ProductDetailsContent = () => {
           </div>
         </div>
       </div>
+    </div>
     </>
   );
 };
