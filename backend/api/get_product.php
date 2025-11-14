@@ -1,4 +1,8 @@
 <?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/bootstrap.php';
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: http://localhost');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
@@ -6,45 +10,27 @@ header('Access-Control-Allow-Headers: Content-Type');
 header('Access-Control-Allow-Credentials: true');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
+    return app_json_response(200, ['success' => true]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit();
+    return app_json_error(405, 'Method not allowed');
 }
 
 $productId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+if (($productId === null || $productId === false) && isset($_GET['id'])) {
+    $productId = filter_var($_GET['id'], FILTER_VALIDATE_INT);
+}
 
 if (!$productId) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Product ID is required']);
-    exit();
+    return app_json_error(400, 'Product ID is required');
 }
 
 try {
-    $host = getenv('DB_HOST') ?: 'localhost';
-    $dbname = getenv('DB_NAME') ?: 'miona_app';
-    $username = getenv('DB_USER') ?: 'root';
-    $db_password = getenv('DB_PASSWORD') ?: '';
-
-    $pdo = new PDO(
-        "mysql:host=$host;dbname=$dbname;charset=utf8mb4",
-        $username,
-        $db_password,
-        [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-        ]
-    );
+    $pdo = app_get_pdo();
 } catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Database connection failed']);
     error_log("Database connection error: " . $e->getMessage());
-    exit();
+    return app_json_error(500, 'Database connection failed');
 }
 
 try {
@@ -58,9 +44,7 @@ try {
     $product = $productStmt->fetch();
 
     if (!$product) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Product not found']);
-        exit();
+        return app_json_error(404, 'Product not found');
     }
 
     $colorStmt = $pdo->prepare("
@@ -122,8 +106,7 @@ try {
         ];
     }, $colors);
 
-    http_response_code(200);
-    echo json_encode([
+    return app_json_response(200, [
         'success' => true,
         'product' => [
             'id' => (int) $product['id'],
@@ -138,8 +121,6 @@ try {
         ],
     ]);
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Failed to fetch product']);
     error_log("Get product error: " . $e->getMessage());
-    exit();
+    return app_json_error(500, 'Failed to fetch product');
 }

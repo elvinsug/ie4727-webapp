@@ -23,6 +23,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import Image from "next/image";
+import { useAlertDialog } from "@/hooks/useAlertDialog";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const API_URL =
@@ -46,6 +47,7 @@ const UserPage = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showAlert, alertDialog } = useAlertDialog();
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -190,75 +192,80 @@ const UserPage = () => {
     // TODO: Implement cancel/return logic
     if (confirm("Are you sure you want to cancel/return this order?")) {
       console.log("Canceling/Returning order:", transactionId);
-      alert("Order cancellation/return request submitted");
+      showAlert({
+        title: "Request Submitted",
+        description: "Order cancellation/return request submitted.",
+      });
     }
   };
 
   return (
-    <div className="mt-[88px] w-screen p-8">
-      <div className="h-[calc(100vh-88px-64px)] mx-auto max-w-7xl flex flex-col gap-4">
-        <h1 className="font-display text-3xl font-semibold">
-          My Transaction History
-        </h1>
+    <>
+      {alertDialog}
+      <div className="mt-[88px] w-screen p-8">
+        <div className="h-[calc(100vh-88px-64px)] mx-auto max-w-7xl flex flex-col gap-4">
+          <h1 className="font-display text-3xl font-semibold">
+            My Transaction History
+          </h1>
 
-        {/* Search and Filter */}
-        <div className="shrink-0 flex items-center gap-2">
-          <Input
-            type="text"
-            placeholder="Search transactions..."
-            className="h-12 bg-white"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <Button
-            variant={dateRange?.from ? "default" : "outline"}
-            className="h-12 min-w-[240px]"
-            onClick={() => setIsDateDialogOpen(true)}
-          >
-            <CalendarIcon className="w-4 h-4" />
-            <p className="pr-2">{getDateRangeText()}</p>
-            {dateRange?.from && (
-              <X
-                className="w-4 h-4 ml-auto"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClearDateRange();
-                }}
-              />
-            )}
-          </Button>
-          <Dialog open={isDateDialogOpen} onOpenChange={setIsDateDialogOpen}>
-            <DialogContent
-              showCloseButton={false}
-              className="max-w-[400px] p-0 flex flex-col"
+          {/* Search and Filter */}
+          <div className="shrink-0 flex items-center gap-2">
+            <Input
+              type="text"
+              placeholder="Search transactions..."
+              className="h-12 bg-white"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <Button
+              variant={dateRange?.from ? "default" : "outline"}
+              className="h-12 min-w-[240px]"
+              onClick={() => setIsDateDialogOpen(true)}
             >
-              <DialogHeader className="p-4 border-b flex items-center justify-between">
-                <DialogTitle className="text-xl font-display font-bold">
-                  Select Date Range
-                </DialogTitle>
-                <DialogClose asChild>
-                  <Button variant="ghost" size="icon">
-                    <X className="w-5 h-5" />
+              <CalendarIcon className="w-4 h-4" />
+              <p className="pr-2">{getDateRangeText()}</p>
+              {dateRange?.from && (
+                <X
+                  className="w-4 h-4 ml-auto"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleClearDateRange();
+                  }}
+                />
+              )}
+            </Button>
+            <Dialog open={isDateDialogOpen} onOpenChange={setIsDateDialogOpen}>
+              <DialogContent
+                showCloseButton={false}
+                className="max-w-[400px] p-0 flex flex-col"
+              >
+                <DialogHeader className="p-4 border-b flex items-center justify-between">
+                  <DialogTitle className="text-xl font-display font-bold">
+                    Select Date Range
+                  </DialogTitle>
+                  <DialogClose asChild>
+                    <Button variant="ghost" size="icon">
+                      <X className="w-5 h-5" />
+                    </Button>
+                  </DialogClose>
+                </DialogHeader>
+
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={1}
+                  className="mx-auto my-4"
+                />
+
+                <div className="flex justify-end gap-2 px-4 py-3 border-t">
+                  <Button variant="ghost" onClick={handleClearDateRange}>
+                    Clear
                   </Button>
-                </DialogClose>
-              </DialogHeader>
-
-              <Calendar
-                initialFocus
-                mode="range"
-                selected={dateRange}
-                onSelect={setDateRange}
-                numberOfMonths={1}
-                className="mx-auto my-4"
-              />
-
-              <div className="flex justify-end gap-2 px-4 py-3 border-t">
-                <Button variant="ghost" onClick={handleClearDateRange}>
-                  Clear
-                </Button>
-                <DialogClose asChild>
-                  <Button onClick={fetchTransactions}>Apply</Button>
-                </DialogClose>
+                  <DialogClose asChild>
+                    <Button onClick={fetchTransactions}>Apply</Button>
+                  </DialogClose>
               </div>
             </DialogContent>
           </Dialog>
@@ -361,6 +368,7 @@ const UserPage = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

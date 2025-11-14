@@ -45,6 +45,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useAlertDialog } from "@/hooks/useAlertDialog";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost/miona/api";
 
@@ -92,6 +93,7 @@ const AdminProducts = () => {
   const [salesByColor, setSalesByColor] = useState<Record<number, number>>({});
   const [salesByProduct, setSalesByProduct] =
     useState<Record<number, number>>({});
+  const { showAlert, alertDialog } = useAlertDialog();
 
   // Form state
   const [productName, setProductName] = useState("");
@@ -191,7 +193,14 @@ const AdminProducts = () => {
       }
     } catch (error) {
       console.error("Error fetching products:", error);
-      alert("Failed to load products");
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to load products.";
+      showAlert({
+        title: "Error",
+        description: message,
+      });
     } finally {
       setLoading(false);
     }
@@ -251,7 +260,10 @@ const AdminProducts = () => {
 
       // Check if already has 2 images
       if (color && color.images.length >= 2) {
-        alert("Maximum 2 images per color");
+        showAlert({
+          title: "Image Limit",
+          description: "Maximum 2 images per color.",
+        });
         return;
       }
 
@@ -408,23 +420,38 @@ const AdminProducts = () => {
     try {
       // Validate required fields
       if (!productName.trim()) {
-        alert("Product name is required");
+        showAlert({
+          title: "Missing Information",
+          description: "Product name is required.",
+        });
         return;
       }
       if (!description.trim()) {
-        alert("Product description is required");
+        showAlert({
+          title: "Missing Information",
+          description: "Product description is required.",
+        });
         return;
       }
       if (!sex) {
-        alert("Please select a sex category");
+        showAlert({
+          title: "Missing Information",
+          description: "Please select a sex category.",
+        });
         return;
       }
       if (!productType) {
-        alert("Please select a product type");
+        showAlert({
+          title: "Missing Information",
+          description: "Please select a product type.",
+        });
         return;
       }
       if (colors.length === 0) {
-        alert("Please add at least one color variant");
+        showAlert({
+          title: "Missing Information",
+          description: "Please add at least one color variant.",
+        });
         return;
       }
 
@@ -488,12 +515,20 @@ const AdminProducts = () => {
         throw new Error(data.error || "Failed to save product");
       }
 
-      alert(editingProductId ? "Product updated successfully!" : "Product created successfully!");
+      showAlert({
+        title: "Success",
+        description: editingProductId
+          ? "Product updated successfully."
+          : "Product created successfully.",
+      });
       handleResetForm();
       fetchProducts(); // Refresh products list
     } catch (error: any) {
       console.error("Error saving product:", error);
-      alert(error.message || "Failed to save product");
+      showAlert({
+        title: "Error",
+        description: error.message || "Failed to save product.",
+      });
     }
   };
 
@@ -514,12 +549,18 @@ const AdminProducts = () => {
         throw new Error(data.error || "Failed to delete product");
       }
 
-      alert("Product deleted successfully!");
+      showAlert({
+        title: "Success",
+        description: "Product deleted successfully.",
+      });
       setDeletingProductId(null);
       fetchProducts(); // Refresh products list
     } catch (error: any) {
       console.error("Error deleting product:", error);
-      alert(error.message || "Failed to delete product");
+      showAlert({
+        title: "Error",
+        description: error.message || "Failed to delete product.",
+      });
     }
   };
 
@@ -531,13 +572,16 @@ const AdminProducts = () => {
   if (loading) {
     return (
       <div className="w-full h-screen flex items-center justify-center">
+        {alertDialog}
         <p className="text-lg text-muted-foreground">Loading products...</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-screen flex flex-col gap-4 p-4">
+    <>
+      {alertDialog}
+      <div className="w-full h-screen flex flex-col gap-4 p-4">
       {/* Search */}
       <div className="shrink-0 flex items-center gap-2">
         <Input
@@ -1052,6 +1096,7 @@ const AdminProducts = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

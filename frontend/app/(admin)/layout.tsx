@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { usePathname, useRouter } from "next/navigation";
+import { useAlertDialog } from "@/hooks/useAlertDialog";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const API_URL =
@@ -57,11 +58,22 @@ export default function RootLayout({
 }>) {
   const pathname = usePathname();
   const router = useRouter();
+  const { showAlert, alertDialog } = useAlertDialog();
   const [user, setUser] = useState<{ name: string; email: string; role?: string } | null>(
     null
   );
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const handleAccessDenied = useCallback(
+    (message: string) => {
+      showAlert({
+        title: "Access Denied",
+        description: message,
+        onConfirm: () => router.push("/"),
+      });
+    },
+    [router, showAlert]
+  );
 
   const loadUserFromStorage = useCallback(() => {
     if (typeof window === "undefined") {
@@ -133,31 +145,31 @@ export default function RootLayout({
         const raw = window.localStorage.getItem("user");
 
         if (!raw) {
-          // No user logged in
-          alert("Access denied. You must be logged in as an admin to access this page.");
-          router.push("/");
+          setIsCheckingAuth(false);
+          handleAccessDenied(
+            "Access denied. You must be logged in as an admin to access this page."
+          );
           return;
         }
 
         const stored = JSON.parse(raw) as { role?: string };
 
         if (stored.role !== "admin") {
-          // User is not admin
-          alert("Access denied. You must be an admin to access this page.");
-          router.push("/");
+          setIsCheckingAuth(false);
+          handleAccessDenied("Access denied. You must be an admin to access this page.");
           return;
         }
 
         setIsCheckingAuth(false);
       } catch (error) {
         console.error("Failed to check admin access", error);
-        alert("Access denied. You must be an admin to access this page.");
-        router.push("/");
+        setIsCheckingAuth(false);
+        handleAccessDenied("Access denied. You must be an admin to access this page.");
       }
     };
 
     checkAdminAccess();
-  }, [router]);
+  }, [handleAccessDenied]);
 
   const handleLogout = useCallback(async () => {
     if (isLoggingOut) {
@@ -200,6 +212,7 @@ export default function RootLayout({
     return (
       <html lang="en">
         <body className={`${fontDisplay.variable} ${fontText.variable} antialiased`}>
+          {alertDialog}
           <div className="min-h-screen flex items-center justify-center bg-neutral-100">
             <div className="text-center">
               <p className="text-lg text-gray-600">Loading...</p>
@@ -215,13 +228,14 @@ export default function RootLayout({
       <body
         className={`${fontDisplay.variable} ${fontText.variable} antialiased`}
       >
+        {alertDialog}
         <div className="grid grid-cols-[320px_1fr] bg-neutral-100 min-h-screen">
           {/* Sidebar */}
           <div className="h-screen w-full flex py-3 pl-3">
             <div className="flex-1 bg-white border border-black/10 shadow-md rounded-xl flex flex-col">
               <div className="flex flex-col flex-1 gap-6 p-4">
                 <Link
-                  href="/miona"
+                  href="/"
                   className="w-full flex items-center justify-center p-2"
                 >
                   <Image

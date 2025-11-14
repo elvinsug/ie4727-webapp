@@ -14,7 +14,8 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import ProductCard from "@/components/ProductCard";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAlertDialog } from "@/hooks/useAlertDialog";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const API_URL =
@@ -51,6 +52,8 @@ type Product = {
 
 const ProductDetailsContent = () => {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { showAlert, alertDialog } = useAlertDialog();
   const productId = searchParams.get("id");
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -160,19 +163,54 @@ const ProductDetailsContent = () => {
     );
 
     if (!selectedSize) {
-      alert("Please select a size");
+      showAlert({
+        title: "Select Size",
+        description: "Please choose a size before adding this item to your cart.",
+      });
       return;
     }
     if (!selectedOption || selectedOption.stock === 0) {
-      alert("This size is out of stock");
+      showAlert({
+        title: "Out of Stock",
+        description: "This size is out of stock.",
+      });
       return;
     }
     if (quantity > selectedOption.stock) {
-      alert(`Only ${selectedOption.stock} items available`);
+      showAlert({
+        title: "Limited Stock",
+        description: `Only ${selectedOption.stock} item(s) available for this size.`,
+      });
       return;
     }
 
     if (typeof window === "undefined") {
+      return;
+    }
+
+    let isAuthenticated = false;
+    try {
+      const rawUser = window.localStorage.getItem("user");
+      if (rawUser) {
+        const parsedUser = JSON.parse(rawUser);
+        if (
+          parsedUser &&
+          typeof parsedUser === "object" &&
+          parsedUser.email
+        ) {
+          isAuthenticated = true;
+        }
+      }
+    } catch (authError) {
+      console.error("Failed to determine authentication state", authError);
+    }
+
+    if (!isAuthenticated) {
+      showAlert({
+        title: "Login Required",
+        description: "Please log in to add items to your cart.",
+        onConfirm: () => router.push("/login"),
+      });
       return;
     }
 
@@ -255,33 +293,46 @@ const ProductDetailsContent = () => {
       window.localStorage.removeItem(CHECKOUT_SNAPSHOT_KEY);
       window.dispatchEvent(new Event("cartChange"));
 
-      alert(
-        `Added ${clampedQuantity} item(s) of ${product.name} ` +
-          `(Color: ${cartItem.color || "Default"}, Size: ${cartItem.size}) to cart`
-      );
+      showAlert({
+        title: "Added to Cart",
+        description:
+          `Added ${clampedQuantity} item(s) of ${product.name} ` +
+          `(Color: ${cartItem.color || "Default"}, Size: ${cartItem.size}) to your cart.`,
+      });
       setQuantity(1);
     } catch (storageError) {
       console.error("Failed to update cart", storageError);
-      alert("Unable to add item to cart at this time.");
+      showAlert({
+        title: "Error",
+        description: "Unable to add item to cart at this time.",
+      });
     }
   };
 
   if (isLoading) {
-    return <LoadingFallback />;
+    return (
+      <>
+        {alertDialog}
+        <LoadingFallback />
+      </>
+    );
   }
 
   if (error || !product || product.colors.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center space-y-4">
-          <h1 className="text-2xl font-semibold">
-            {error || "Product not found"}
-          </h1>
-          <Link href="/products" className="text-blue-600 underline">
-            Back to products
-          </Link>
+      <>
+        {alertDialog}
+        <div className="min-h-screen flex items-center justify-center bg-white">
+          <div className="text-center space-y-4">
+            <h1 className="text-2xl font-semibold">
+              {error || "Product not found"}
+            </h1>
+            <Link href="/products" className="text-blue-600 underline">
+              Back to products
+            </Link>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -300,7 +351,9 @@ const ProductDetailsContent = () => {
     0;
 
   return (
-    <div className="min-h-screen bg-white">
+    <>
+      {alertDialog}
+      <div className="min-h-screen bg-white">
       {/* Main Product Section */}
       <div className="max-w-[1920px] mx-auto">
         <div className="grid lg:grid-cols-2 gap-0">
@@ -546,7 +599,7 @@ const ProductDetailsContent = () => {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
